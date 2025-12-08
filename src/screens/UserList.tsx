@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { User } from "../types";
 import { supabase, TABLES } from "../config/lib";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import { MaterialIcons as Icon } from "@expo/vector-icons";
 
 const UserList = () => {
   const [users, setUsers] = useState<User[]>([]);

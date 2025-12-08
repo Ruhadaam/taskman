@@ -9,8 +9,8 @@ import {
 } from "react-native";
 import { supabase, TABLES } from "../config/lib";
 import { Task, User } from "../types";
-import Icon from "react-native-vector-icons/MaterialIcons";
-import TaskCard from "../components/tasks/TaskCard";
+import { MaterialIcons as Icon } from "@expo/vector-icons";
+// Todo görünümü için TaskCard kaldırıldı
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
 import CreateTaskModal from "../components/tasks/CreateTaskModal";
 import { useAuth } from "../context/AuthContext";
@@ -21,25 +21,18 @@ const UserTaskList = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [detailModalVisible, setDetailModalVisible] = useState(false);
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);  // User dropdown functionality removed for non-admin users
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [newTask, setNewTask] = useState<Task>({
+  const [newTask, setNewTask] = useState<Omit<Task, 'id'>>({
     title: "",
     description: "",
-    assignedTo: [],
-    dueDate: new Date(),
     status: "waiting",
     createdAt: new Date(),
     createdBy: currentUser?.id || "",
   });
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-  const [adminModalVisible, setAdminModalVisible] = useState(false);
-  const [notificationTitle, setNotificationTitle] = useState("");
-  const [notificationMessage, setNotificationMessage] = useState("");
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [hideCompleted, setHideCompleted] = useState(false);
   const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
   const getInitials = (name: string) => {
     return name
@@ -48,91 +41,45 @@ const UserTaskList = () => {
       .join("");
   };
 
-  const getRandomColor = (name: string) => {
-    const colors = [
-      "#FF3B30", // Kırmızı
-      "#FF9500", // Turuncu
-      "#FFCC00", // Sarı
-      "#34C759", // Yeşil
-      "#5AC8FA", // Açık Mavi
-      "#007AFF", // Mavi
-      "#5856D6", // Mor
-      "#FF2D55", // Pembe
-      "#8E8E93", // Gri
-      "#4CD964", // Parlak Yeşil
-    ];
-
-    const sum = name
-      .split("")
-      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const index = sum % colors.length;
-    return colors[index];
-  };
-
-  const loadUsers = async () => {
-    try {
-      const { data: profiles, error } = await supabase
-        .from(TABLES.PROFILES)
-        .select("*");
-
-      if (error) throw error;
-
-      const usersList =
-        profiles?.map((profile) => ({
-          id: profile.id,
-          name: profile.name || "",
-          email: profile.email || "",
-          isAdmin: profile.isAdmin || false,
-          unseen: profile.unseen || [],
-          seen: profile.seen || [],
-        })) || [];
-
-      setUsers(usersList);
-    } catch (error) {
-      console.error("Kullanıcılar yüklenirken hata:", error);
-    }
-  };
-
   const loadTasks = async () => {
     if (!currentUser?.id) return;
 
     try {
-      // Kullanıcının oluşturduğu görevler
-      const { data: createdTasks, error: createdError } = await supabase
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+
+      // Get today's tasks
+      const { data: todayTasks, error: todayError } = await supabase
         .from(TABLES.TASKS)
         .select("*")
-        .eq("createdBy", currentUser.id);
+        .eq("createdBy", currentUser.id)
+        .gte('createdAt', todayStart.toISOString())
+        .lte('createdAt', todayEnd.toISOString());
 
-      if (createdError) throw createdError;
+      if (todayError) throw todayError;
 
-      // Kullanıcıya atanan görevler
-      const { data: assignedTasks, error: assignedError } = await supabase
+      // Get waiting tasks from previous days
+      const { data: waitingTasks, error: waitingError } = await supabase
         .from(TABLES.TASKS)
         .select("*")
-        .contains("assignedTo", [currentUser.id]);
+        .eq("createdBy", currentUser.id)
+        .eq('status', 'waiting')
+        .lt('createdAt', todayStart.toISOString());
 
-      if (assignedError) throw assignedError;
+      if (waitingError) throw waitingError;
 
-      // Tüm görevleri birleştir ve tekrarları kaldır
-      const allTasks = new Map();
+      // Combine and deduplicate tasks
+      const allTasks = [...(todayTasks || []), ...(waitingTasks || [])];
+      const uniqueTasks = Array.from(new Map(allTasks.map(task => [task.id, task])).values());
 
-      createdTasks?.forEach((task) => {
-        allTasks.set(task.id, {
-          ...task,
-          dueDate: task.dueDate ? new Date(task.dueDate) : new Date(),
-          createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
-        });
-      });
+      const tasksList = uniqueTasks.map((task) => ({
+        ...task,
+        createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
+        createdBy: (task as any).createdby || (task as any).createdBy || "",
+      }));
 
-      assignedTasks?.forEach((task) => {
-        allTasks.set(task.id, {
-          ...task,
-          dueDate: task.dueDate ? new Date(task.dueDate) : new Date(),
-          createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
-        });
-      });
-
-      const tasksList = Array.from(allTasks.values());
       setTasks(tasksList);
     } catch (error) {
       console.error("Görevler yüklenirken hata:", error);
@@ -140,69 +87,36 @@ const UserTaskList = () => {
   };
 
   useEffect(() => {
-    loadUsers();
     loadTasks();
   }, []);
 
   useEffect(() => {
+    const sortTasks = (list: Task[]) => {
+      return [...list].sort((a, b) => {
+        if (a.status === "completed" && b.status !== "completed") return 1;
+        if (a.status !== "completed" && b.status === "completed") return -1;
+
+
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (aTime !== bTime) return aTime - bTime;
+
+        const aId = a.id || "";
+        const bId = b.id || "";
+        return aId.localeCompare(bId);
+      });
+    };
+
     if (hideCompleted) {
-      setFilteredTasks(tasks.filter((task) => task.status !== "completed"));
+      setFilteredTasks(sortTasks(tasks.filter((task) => task.status !== "completed")));
     } else {
-      setFilteredTasks(tasks);
+      setFilteredTasks(sortTasks(tasks));
     }
   }, [tasks, hideCompleted]);
 
-  const toggleUserSelection = (userId: string, isNewTask: boolean = true) => {
-    if (isNewTask) {
-      if (!newTask) return;
-      const isSelected = newTask.assignedTo.includes(userId);
-      const updatedAssignedTo = isSelected
-        ? newTask.assignedTo.filter((id) => id !== userId)
-        : [...newTask.assignedTo, userId];
-
-      setNewTask({
-        ...newTask,
-        assignedTo: updatedAssignedTo,
-      });
-    } else {
-      if (!selectedTask) return;
-      const isSelected = selectedTask.assignedTo.includes(userId);
-      const updatedAssignedTo = isSelected
-        ? selectedTask.assignedTo.filter((id) => id !== userId)
-        : [...selectedTask.assignedTo, userId];
-
-      setSelectedTask({
-        ...selectedTask,
-        assignedTo: updatedAssignedTo,
-      });
-    }
-  };
-
-  const handleAssignUsers = async () => {
-    if (!selectedTask?.id) return;
-
-    try {
-      const { error } = await supabase
-        .from(TABLES.TASKS)
-        .update({
-          assignedTo: selectedTask.assignedTo,
-          updatedAt: new Date().toISOString(),
-        })
-        .eq("id", selectedTask.id);
-
-      if (error) throw error;
-
-      setShowUserDropdown(false);
-      loadTasks();
-    } catch (error) {
-      console.error("Kullanıcı atama hatası:", error);
-      Alert.alert("Hata", "Kullanıcı atanırken bir hata oluştu");
-    }
-  };
-
   const handleCreateTask = async () => {
-    if (!newTask.title || !newTask.dueDate) {
-      Alert.alert("Hata", "Başlık ve son tarih zorunludur");
+    if (!newTask.title) {
+      Alert.alert("Hata", "Başlık zorunludur");
       return;
     }
     if (!currentUser?.id) {
@@ -211,30 +125,36 @@ const UserTaskList = () => {
     }
 
     try {
+      const selectedDate = newTask.createdAt || new Date();
+      const taskToCreate = {
+        ...newTask,
+        createdAt: selectedDate,
+        createdBy: currentUser.id,
+      };
+
       const { data, error } = await supabase
         .from(TABLES.TASKS)
-        .insert([
-          {
-            title: newTask.title,
-            description: newTask.description,
-            assignedTo: newTask.assignedTo || [],
-            dueDate: newTask.dueDate.toISOString(),
-            status: "waiting",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            createdBy: currentUser.id,
-          },
-        ])
+        .insert([taskToCreate])
         .select()
         .single();
-      sendNewTaskNotification(data);
+
       if (error) throw error;
+
+      // Only pass necessary data to avoid circular references
+      if (data) {
+        await sendNewTaskNotification({
+          id: data.id,
+          title: data.title,
+          description: data.description,
+          status: data.status,
+          createdAt: data.createdAt,
+          createdBy: data.createdBy
+        });
+      }
 
       setNewTask({
         title: "",
         description: "",
-        dueDate: new Date(),
-        assignedTo: [],
         status: "waiting",
         createdAt: new Date(),
         createdBy: currentUser.id,
@@ -242,13 +162,13 @@ const UserTaskList = () => {
       setModalVisible(false);
       loadTasks();
     } catch (error) {
-      console.error("Görev oluşturma hatası:", error);
+      console.error("Görev oluşturma hatası:", (error as any).message);
       Alert.alert("Hata", "Görev oluşturulurken bir hata oluştu");
     }
   };
 
   const handleStatusChange = async (
-    newStatus: "waiting" | "in-progress" | "completed" | "past_due"
+    newStatus: "waiting" | "completed" | "past_due"
   ) => {
     if (!selectedTask?.id) return;
 
@@ -257,14 +177,12 @@ const UserTaskList = () => {
         .from(TABLES.TASKS)
         .update({
           status: newStatus,
-          updatedAt: new Date().toISOString(),
         })
         .eq("id", selectedTask.id);
 
       if (error) throw error;
 
       setSelectedTask({ ...selectedTask, status: newStatus });
-      setShowStatusDropdown(false);
       loadTasks();
     } catch (error) {
       console.error("Durum güncellenirken hata:", error);
@@ -272,20 +190,78 @@ const UserTaskList = () => {
     }
   };
 
-  const handleDeleteTask = async () => {
-    if (!selectedTask?.id) return;
+  const toggleTaskDone = async (task: Task) => {
+    const nextStatus: Task["status"] = task.status === "completed" ? "waiting" : "completed";
+    const previousTasks = tasks;
+
+    const optimisticallyUpdated = tasks.map((t) =>
+      t.id === task.id ? { ...t, status: nextStatus } : t
+    );
+    setTasks(optimisticallyUpdated);
+    if (selectedTask && selectedTask.id === task.id) {
+      setSelectedTask({ ...selectedTask, status: nextStatus });
+    }
+
     try {
       const { error } = await supabase
         .from(TABLES.TASKS)
+        .update({ status: nextStatus })
+        .eq("id", task.id);
+      if (error) throw error;
+    } catch (error) {
+      console.error("Durum değiştirilirken hata:", error);
+      setTasks(previousTasks);
+      if (selectedTask && selectedTask.id === task.id) {
+        setSelectedTask({ ...selectedTask, status: task.status });
+      }
+      Alert.alert("Hata", "Durum değiştirilirken bir hata oluştu");
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    console.log("Attempting to delete task:", selectedTask?.id);
+    if (!selectedTask?.id) {
+      console.error("No task ID selected");
+      return;
+    }
+
+    try {
+      const { error, count, data } = await supabase
+        .from(TABLES.TASKS)
         .delete()
-        .eq("id", selectedTask.id);
+        .eq("id", selectedTask.id)
+        .select();
+
+      console.log("Delete result:", { error, count, data });
 
       if (error) throw error;
+      if (count === 0) {
+        throw new Error("Görev silinemedi (bulunamadı veya yetki yok).");
+      }
 
       setDetailModalVisible(false);
       loadTasks();
     } catch (error) {
-      console.error("Görev silinirken hata:", error);
+      console.error("Görev silinirken hata (catch):", error);
+      Alert.alert("Hata", "Görev silinemedi: " + (error as any).message);
+    }
+  };
+
+  const handleSaveTask = async (title: string, description: string) => {
+    if (!selectedTask?.id) return;
+    try {
+      const { error } = await supabase
+        .from(TABLES.TASKS)
+        .update({ title, description })
+        .eq("id", selectedTask.id);
+      if (error) throw error;
+
+      setSelectedTask({ ...selectedTask, title, description });
+      loadTasks();
+      setDetailModalVisible(false);
+    } catch (error) {
+      console.error("Görev güncellenirken hata:", error);
+      Alert.alert("Hata", "Görev güncellenirken bir hata oluştu");
     }
   };
 
@@ -294,7 +270,6 @@ const UserTaskList = () => {
 
     const statuses = [
       { value: "waiting", color: "#007AFF" },
-      { value: "in-progress", color: "#FF9500" },
       { value: "completed", color: "#34C759" },
       { value: "past_due", color: "#FF3B30" },
     ];
@@ -311,10 +286,9 @@ const UserTaskList = () => {
             onPress={() =>
               handleStatusChange(
                 status.value as
-                  | "waiting"
-                  | "in-progress"
-                  | "completed"
-                  | "past_due"
+                | "waiting"
+                | "completed"
+                | "past_due"
               )
             }
           >
@@ -329,40 +303,69 @@ const UserTaskList = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Görevlerim</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.hideCompletedButton}
-            onPress={() => setHideCompleted(!hideCompleted)}
-          >
-            <Icon
-              name={hideCompleted ? "check-box" : "check-box-outline-blank"}
-              size={24}
-              color="#4CD964"
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setModalVisible(true)}
-          >
-            <Icon name="add" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => setModalVisible(true)}
+        >
+          <Icon name="add" size={24} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       <FlatList
         data={filteredTasks}
-        renderItem={({ item }) => (
-          <TaskCard
-            item={item}
-            users={users}
-            onPress={() => {
-              setSelectedTask(item);
-              setDetailModalVisible(true);
-            }}
-            getInitials={getInitials}
-            getRandomColor={getRandomColor}
-          />
-        )}
+        renderItem={({ item }) => {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const borderLeftColor = "#34C759";
+
+          return (
+            <View style={[
+              styles.todoItem,
+              { borderLeftColor: borderLeftColor },
+            ]}>
+              <TouchableOpacity
+                style={[styles.checkbox, item.status === "completed" && styles.checkboxChecked]}
+                onPress={() => toggleTaskDone(item)}
+              >
+                {item.status === "completed" && (
+                  <Icon name="check" size={16} color="#fff" />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.todoContent}
+                onPress={() => {
+                  setSelectedTask(item);
+                  setDetailModalVisible(true);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.todoTitle,
+                    item.status === "completed" && styles.todoTitleCompleted,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.title}
+                </Text>
+                <View style={styles.todoMetaRow}>
+                  <View
+                    style={[
+                      styles.statusDot,
+                      item.status === "waiting" && { backgroundColor: "#007AFF" },
+                      item.status === "completed" && { backgroundColor: "#34C759" },
+                      item.status === "past_due" && { backgroundColor: "#FF3B30" },
+                    ]}
+                  />
+                  <Text style={styles.todoMeta}>
+                    {item.status === "waiting" && "Beklemede"}
+                    {item.status === "completed" && "Tamamlanmış"}
+                    {item.status === "past_due" && "Dünden Kalan"}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          );
+        }}
         keyExtractor={(item) => item.id || ""}
         contentContainerStyle={styles.listContainer}
       />
@@ -371,10 +374,6 @@ const UserTaskList = () => {
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         newTask={newTask}
-        users={users}
-        showUserDropdown={showUserDropdown}
-        onUserDropdownToggle={() => setShowUserDropdown(!showUserDropdown)}
-        onUserSelect={(userId) => toggleUserSelection(userId)}
         onTaskChange={(field, value) =>
           setNewTask({ ...newTask, [field]: value })
         }
@@ -385,20 +384,10 @@ const UserTaskList = () => {
         visible={detailModalVisible}
         onClose={() => setDetailModalVisible(false)}
         selectedTask={selectedTask}
-        users={users}
-        showUserDropdown={showUserDropdown}
-        showStatusDropdown={showStatusDropdown}
-        onStatusDropdownToggle={() =>
-          setShowStatusDropdown(!showStatusDropdown)
-        }
-        onUserDropdownToggle={() => setShowUserDropdown(!showUserDropdown)}
-        onUserSelect={(userId) => toggleUserSelection(userId, false)}
-        onSaveUsers={handleAssignUsers}
         onStatusChange={handleStatusChange}
-        getInitials={getInitials}
-        getRandomColor={getRandomColor}
-        renderStatusDropdown={renderStatusDropdown}
         onDeleteTask={handleDeleteTask}
+        onSave={handleSaveTask}
+        isAdmin={false}
       />
     </View>
   );
@@ -451,6 +440,76 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: 16,
   },
+  todoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#eee",
+    overflow: "hidden",
+    borderLeftWidth: 5, // Keep borderLeftWidth, color will be dynamic
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#ccc",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+    backgroundColor: "#fff",
+  },
+  checkboxChecked: {
+    backgroundColor: "#34C759",
+    borderColor: "#34C759",
+  },
+  todoContent: {
+    flex: 1,
+  },
+  todoTitle: {
+    fontSize: 16,
+    color: "#333",
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  todoTitleCompleted: {
+    color: "#8E8E93",
+    textDecorationLine: "line-through",
+  },
+  todoMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+    backgroundColor: "#ccc",
+  },
+  todoMeta: {
+    fontSize: 12,
+    color: "#666",
+  },
+  overdueItem: {
+    position: "relative",
+  },
+  overdueIndicator: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 5,
+    backgroundColor: "#FF3B30",
+    borderTopLeftRadius: 10,
+    borderBottomLeftRadius: 10,
+    zIndex: 1,
+  },
   statusDropdown: {
     position: "absolute",
     top: 40,
@@ -464,8 +523,8 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    elevation: 5,
-    zIndex: 1000,
+    elevation: 10,
+    zIndex: 9999,
   },
   statusDropdownItem: {
     paddingHorizontal: 16,

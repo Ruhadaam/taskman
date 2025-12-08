@@ -9,14 +9,12 @@ export interface User {
   seen: string[];
 }
 
-export type TaskStatus = "waiting" | "in-progress" | "completed" | "past_due";
+export type TaskStatus = "waiting" | "completed" | "past_due";
 
 export interface Task {
   id?: string;
   title: string;
   description: string;
-  assignedTo: string[];
-  dueDate: Date;
   status: TaskStatus;
   createdAt: Date;
   createdBy: string;

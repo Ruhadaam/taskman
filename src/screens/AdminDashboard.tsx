@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import { MaterialIcons as Icon } from "@expo/vector-icons";
 import { sendAdminNotification } from "../services/notificationService";
 import { supabase, TABLES } from "../config/lib";
 
@@ -19,6 +19,7 @@ type RootStackParamList = {
   AdminDashboard: undefined;
   UserList: undefined;
   TaskList: undefined;
+  UserDashboard: undefined;
 };
 
 type AdminDashboardNavigationProp = StackNavigationProp<
@@ -61,8 +62,7 @@ const AdminDashboard = () => {
         totalTasks: tasks?.length || 0,
         completedTasks:
           tasks?.filter((task) => task.status === "completed").length || 0,
-        inProgressTasks:
-          tasks?.filter((task) => task.status === "in-progress").length || 0,
+        inProgressTasks: 0,
         waitingTasks:
           tasks?.filter((task) => task.status === "waiting").length || 0,
         pastDueTasks:
@@ -83,14 +83,102 @@ const AdminDashboard = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Admin Paneli</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>Admin Paneli</Text>
+          <Text style={styles.subtitle}>Hoşgeldin, Admin</Text>
+        </View>
         <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: "#5856D6" }]}
+          style={styles.notificationButton}
           onPress={() => setAdminModalVisible(true)}
         >
-          <Icon name="notifications" size={24} color="#fff" />
+          
         </TouchableOpacity>
       </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.statsContainer}>
+          <View style={[styles.statCard, { backgroundColor: "#007AFF" }]}>
+            <View style={styles.statIconContainer}>
+              <Icon name="people" size={32} color="#fff" />
+            </View>
+            <Text style={styles.statNumber}>{stats.totalUsers}</Text>
+            <Text style={styles.statLabel}>Toplam Kullanıcı</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: "#6a706c" }]}>
+            <View style={styles.statIconContainer}>
+              <Icon name="assignment" size={32} color="#fff" />
+            </View>
+            <Text style={styles.statNumber}>{stats.totalTasks}</Text>
+            <Text style={styles.statLabel}>Toplam Görev</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: "#34C759" }]}>
+            <View style={styles.statIconContainer}>
+              <Icon name="check-circle" size={32} color="#fff" />
+            </View>
+            <Text style={styles.statNumber}>{stats.completedTasks}</Text>
+            <Text style={styles.statLabel}>Tamamlanan</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: "#FF9500" }]}>
+            <View style={styles.statIconContainer}>
+              <Icon name="hourglass-empty" size={32} color="#fff" />
+            </View>
+            <Text style={styles.statNumber}>{stats.inProgressTasks}</Text>
+            <Text style={styles.statLabel}>Devam Eden</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: "#5856D6" }]}>
+            <View style={styles.statIconContainer}>
+              <Icon name="schedule" size={32} color="#fff" />
+            </View>
+            <Text style={styles.statNumber}>{stats.waitingTasks}</Text>
+            <Text style={styles.statLabel}>Bekleyen</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: "#FF3B30" }]}>
+            <View style={styles.statIconContainer}>
+              <Icon name="warning" size={32} color="#fff" />
+            </View>
+            <Text style={styles.statNumber}>{stats.pastDueTasks}</Text>
+            <Text style={styles.statLabel}>Geçmiş</Text>
+          </View>
+        </View>
+
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => navigation.navigate("UserList")}
+          >
+            <View style={styles.actionButtonContent}>
+              <Icon name="people" size={24} color="#fff" />
+              <Text style={styles.actionButtonText}>Kullanıcıları Yönet</Text>
+            </View>
+            <Icon name="chevron-right" size={24} color="#fff" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => navigation.navigate("TaskList")}
+          >
+            <View style={styles.actionButtonContent}>
+              <Icon name="assignment" size={24} color="#fff" />
+              <Text style={styles.actionButtonText}>Görevleri Yönet</Text>
+            </View>
+            <Icon name="chevron-right" size={24} color="#fff" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: "#34C759" }]}
+            onPress={() => navigation.navigate("UserDashboard")}
+          >
+            <View style={styles.actionButtonContent}>
+              <Icon name="list" size={24} color="#fff" />
+              <Text style={styles.actionButtonText}>Kendi Panelime git</Text>
+            </View>
+            <Icon name="chevron-right" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
 
       {/* Admin Bildirim Modalı */}
       <Modal
@@ -141,56 +229,6 @@ const AdminDashboard = () => {
           </View>
         </View>
       </Modal>
-
-      <ScrollView
-        style={styles.statsContainer}
-        contentContainerStyle={{
-          flexDirection: "row",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
-        }}
-      >
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.totalUsers}</Text>
-          <Text style={styles.statLabel}>Toplam Kullanıcı</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.totalTasks}</Text>
-          <Text style={styles.statLabel}>Toplam Görev</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.completedTasks}</Text>
-          <Text style={styles.statLabel}>Tamamlanan</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.inProgressTasks}</Text>
-          <Text style={styles.statLabel}>Devam Eden</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.waitingTasks}</Text>
-          <Text style={styles.statLabel}>Bekleyen</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.pastDueTasks}</Text>
-          <Text style={styles.statLabel}>Geçmiş</Text>
-        </View>
-      </ScrollView>
-
-      <View style={styles.actionsContainer}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation.navigate("UserList")}
-        >
-          <Text style={styles.actionButtonText}>Kullanıcıları Yönet</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation.navigate("TaskList")}
-        >
-          <Text style={styles.actionButtonText}>Görevleri Yönet</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 };
@@ -201,30 +239,45 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
   },
   header: {
-    padding: 16,
-    paddingHorizontal: 20,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    height: 60,
+    padding: 20,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+  },
+  headerLeft: {
+    flex: 1,
   },
   title: {
     fontSize: 24,
     fontWeight: "bold",
     color: "#333",
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#666",
+    marginTop: 4,
+  },
+  notificationButton: {
+    padding: 10,
+  },
+  scrollView: {
     flex: 1,
   },
-  addButton: {
-    backgroundColor: "#007AFF",
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
+  statsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    padding: 15,
+    gap: 15,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: "45%",
+    padding: 20,
+    borderRadius: 15,
     alignItems: "center",
-    elevation: 2,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -232,6 +285,56 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+    elevation: 5,
+  },
+  statIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  statNumber: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  statLabel: {
+    fontSize: 14,
+    color: "#fff",
+    marginTop: 5,
+  },
+  actionsContainer: {
+    padding: 15,
+  },
+  actionButton: {
+    backgroundColor: "#007AFF",
+    padding: 15,
+    borderRadius: 15,
+    marginBottom: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  actionButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  actionButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   modalContainer: {
     flex: 1,
@@ -241,7 +344,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: "#fff",
-    borderRadius: 10,
+    borderRadius: 15,
     padding: 20,
     width: "90%",
     maxHeight: "80%",
@@ -255,6 +358,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingBottom: 10,
     borderBottomWidth: 2,
+    borderBottomColor: "#007AFF",
   },
   modalTitle: {
     fontSize: 20,
@@ -265,8 +369,8 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 10,
+    borderRadius: 10,
+    padding: 15,
     marginBottom: 15,
     fontSize: 16,
   },
@@ -277,54 +381,10 @@ const styles = StyleSheet.create({
   submitButton: {
     backgroundColor: "#007AFF",
     padding: 15,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: "center",
   },
   submitButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  statsContainer: {
-    padding: 10,
-  },
-  statCard: {
-    width: "48%",
-    backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statNumber: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#007AFF",
-    marginBottom: 5,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: "#666",
-  },
-  actionsContainer: {
-    padding: 20,
-  },
-  actionButton: {
-    backgroundColor: "#007AFF",
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-    alignItems: "center",
-  },
-  actionButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",

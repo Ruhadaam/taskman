@@ -1,12 +1,13 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import { MaterialIcons as Icon } from "@expo/vector-icons";
 import { Task, User } from "../../types";
 
 interface TaskCardProps {
   item: Task;
   users: User[];
   onPress: () => void;
+  onComplete?: (taskId: string) => void;
   getInitials: (name: string) => string;
   getRandomColor: (name: string) => string;
 }
@@ -15,24 +16,33 @@ const TaskCard: React.FC<TaskCardProps> = ({
   item,
   users,
   onPress,
+  onComplete,
   getInitials,
   getRandomColor,
 }) => {
+  const [isCompleting, setIsCompleting] = React.useState(false);
+
+  const handleCheckboxPress = () => {
+    if (isCompleting) return;
+    setIsCompleting(true);
+    // Slight delay before keeping the promise to the user
+    setTimeout(() => {
+      if (onComplete && item.id) {
+        onComplete(item.id);
+      } else {
+        setIsCompleting(false);
+      }
+    }, 800);
+  };
+
   const statusColor =
     item.status === "completed"
       ? "#34C759"
-      : item.status === "in-progress"
-      ? "#FF9500"
       : item.status === "past_due"
-      ? "#FF3B30"
-      : "#007AFF";
+        ? "#FF3B30"
+        : "#007AFF";
 
   const creator = users.find((u) => u.id.toString() === item.createdBy);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const isOverdue =
-    today > new Date(item.dueDate) && item.status !== "completed";
-
   return (
     <TouchableOpacity style={styles.taskCard} onPress={onPress}>
       <View
@@ -41,17 +51,29 @@ const TaskCard: React.FC<TaskCardProps> = ({
       <View style={styles.taskContent}>
         <View style={styles.taskInfo}>
           <View style={styles.titleContainer}>
-            <Text style={styles.taskTitle} numberOfLines={1}>
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={handleCheckboxPress}
+              activeOpacity={0.6}
+            >
+              <View style={[
+                styles.checkbox,
+                (isCompleting || item.status === "completed") && styles.checkboxChecked
+              ]}>
+                {(isCompleting || item.status === "completed") && (
+                  <Icon name="check" size={16} color="#fff" />
+                )}
+              </View>
+            </TouchableOpacity>
+            <Text
+              style={[
+                styles.taskTitle,
+                (isCompleting || item.status === "completed") && { textDecorationLine: "line-through", color: "#999" }
+              ]}
+              numberOfLines={1}
+            >
               {item.title}
             </Text>
-            {isOverdue && (
-              <Icon
-                name="error"
-                size={25}
-                color="#FF3B30"
-                style={styles.warningIcon}
-              />
-            )}
           </View>
           <View style={styles.creatorInfo}>
             <View
@@ -66,32 +88,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
             </View>
           </View>
         </View>
-        <View style={styles.taskUsers}>
-          {item.assignedTo.slice(0, 3).map((userId) => {
-            const user = users.find((u) => u.id.toString() === userId);
 
-            return (
-              <View
-                key={userId}
-                style={[
-                  styles.userBadge,
-                  { backgroundColor: getRandomColor(user?.name || "") },
-                ]}
-              >
-                <Text style={styles.initialsText}>
-                  {getInitials(user?.name || "")}
-                </Text>
-              </View>
-            );
-          })}
-          {item.assignedTo.length > 3 && (
-            <View style={[styles.userBadge, { backgroundColor: "#8E8E93" }]}>
-              <Text style={styles.initialsText}>
-                +{item.assignedTo.length - 3}
-              </Text>
-            </View>
-          )}
-        </View>
       </View>
     </TouchableOpacity>
   );
@@ -154,7 +151,7 @@ const styles = StyleSheet.create({
   },
   statusIndicator: {
     width: 6,
-    height: "100%",
+    height: "150%",
     position: "absolute",
     left: 0,
     top: 0,
@@ -183,7 +180,24 @@ const styles = StyleSheet.create({
   titleContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
+  },
+  checkboxContainer: {
+    marginRight: 4,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#C7C7CC",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  checkboxChecked: {
+    backgroundColor: "#34C759", // iOS Green
+    borderColor: "#34C759",
   },
   warningIcon: {
     marginLeft: 4,

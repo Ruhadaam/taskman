@@ -31,25 +31,42 @@ export const setupNotifications = async () => {
   }
 };
 
-// Yeni görev oluşturulduğunda bildirim gönder
-export const sendNewTaskNotification = async (task: Task) => {
+// Yeni görev oluşturulduğunda, görevi oluşturan kullanıcıya bildirim gönder
+export const sendNewTaskNotification = async (task: Task | null | undefined) => {
   try {
-    const hasPermission = await setupNotifications();
-    if (!hasPermission) return;
-
-    // Atanan kullanıcı yoksa bildirim gönderme
-    if (!task.assignedTo || task.assignedTo.length === 0) {
-      console.log("Göreve atanan kullanıcı yok, bildirim gönderilmedi");
+    if (!task) {
+      console.log("Bildirim gönderilemedi: task verisi yok");
       return;
     }
 
-    // Atanan kullanıcıları getir
+    if (!task.createdBy) {
+      console.log("Bildirim gönderilemedi: createdBy alanı yok");
+      return;
+    }
+
+    const hasPermission = await setupNotifications();
+    if (!hasPermission) {
+      console.log("Bildirim izni yok");
+      return;
+    }
+
+    // Görevi oluşturan kullanıcıyı getir
     const { data: users, error: usersError } = await supabase
       .from(TABLES.PROFILES)
-      .select("*")
-      .in("id", task.assignedTo);
+      .select("id, expoPushToken, unseen")
+      .eq("id", task.createdBy);
 
-    if (usersError) throw usersError;
+    if (usersError) {
+      console.error("Kullanıcı getirme hatası:", usersError);
+      throw usersError;
+    }
+
+    if (!users || users.length === 0) {
+      console.log("Kullanıcı bulunamadı");
+      return;
+    }
+
+    console.log("Bulunan kullanıcılar:", users);
 
     // Bildirimi oluştur
     const { data: notification, error: notificationError } = await supabase
@@ -65,10 +82,17 @@ export const sendNewTaskNotification = async (task: Task) => {
       .select()
       .single();
 
-    if (notificationError) throw notificationError;
+    if (notificationError) {
+      console.error("Bildirim oluşturma hatası:", notificationError);
+      throw notificationError;
+    }
 
-    // Her kullanıcının unseen array'ine bildirim ID'sini ekle
-    const updatePromises = users?.map(async (user) => {
+    console.log("Bildirim oluşturuldu:", notification);
+
+    // Kullanıcının unseen array'ine bildirim ID'sini ekle
+    const updatePromises = users.map(async (user) => {
+      console.log(`Kullanıcı ${user.id} için bildirim gönderiliyor...`);
+
       const { error: updateError } = await supabase
         .from(TABLES.PROFILES)
         .update({
@@ -76,19 +100,28 @@ export const sendNewTaskNotification = async (task: Task) => {
         })
         .eq("id", user.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error(`Kullanıcı ${user.id} güncelleme hatası:`, updateError);
+        throw updateError;
+      }
 
       // Push bildirimi gönder
       if (user.expoPushToken) {
+        console.log(
+          `Push bildirimi gönderiliyor (token: ${user.expoPushToken})`
+        );
         await sendExpoPushNotification(
           user.expoPushToken,
           "Yeni Görev",
           `${task.title} görevi size atandı!`
         );
+      } else {
+        console.log(`Kullanıcı ${user.id} için push token bulunamadı`);
       }
     });
 
-    await Promise.all(updatePromises || []);
+    await Promise.all(updatePromises);
+    console.log("Tüm bildirimler başarıyla gönderildi");
   } catch (error) {
     console.error("Yeni görev bildirimi hatası:", error);
   }
@@ -204,35 +237,66 @@ export const sendExpoPushNotification = async (
 
 export const registerForPushNotificationsAsync = async (userId: string) => {
   let token;
-  if (Device.isDevice) {
+
+  try {
+    console.log("Push bildirim token alma işlemi başlatılıyor...");
+
+    if (!Device.isDevice) {
+      console.log("Hata: Fiziksel cihaz bulunamadı");
+      return null;
+    }
+
+    console.log("Cihaz kontrolü başarılı, izinler kontrol ediliyor...");
+
     const { status: existingStatus } =
       await Notifications.getPermissionsAsync();
+    console.log("Mevcut izin durumu:", existingStatus);
+
     let finalStatus = existingStatus;
+
     if (existingStatus !== "granted") {
+      console.log("İzin isteniyor...");
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
+      console.log("Yeni izin durumu:", finalStatus);
     }
+
     if (finalStatus !== "granted") {
-      Alert.alert("Hata", "Push bildirim izni verilmedi!");
-      return;
+      console.log("Hata: Bildirim izni reddedildi");
+      return null;
     }
 
-    try {
-      token = (await Notifications.getExpoPushTokenAsync()).data;
+    console.log("Token alınıyor...");
 
-      // Supabase'e kaydet
-      const { error } = await supabase
-        .from(TABLES.PROFILES)
-        .update({ expoPushToken: token })
-        .eq("id", userId);
+    // Build sürecinde farklı bir yaklaşım kullanıyoruz
+    const expoPushToken = await Notifications.getExpoPushTokenAsync({
+      projectId: "fd987b21-0a48-4b47-941a-c3fb349e6198",
+      development: __DEV__, // Geliştirme modunda farklı davranması için
+    });
 
-      if (error) throw error;
-    } catch (error) {
-      console.error("Push token alınırken hata:", error);
-      Alert.alert("Hata", "Push bildirim token'ı alınamadı!");
+    token = expoPushToken.data;
+    console.log("Token alındı:", token);
+
+    if (!token) {
+      console.log("Hata: Token alınamadı");
+      return null;
     }
-  } else {
-    Alert.alert("Hata", "Fiziksel cihaz gerekli!");
+
+    console.log("Token Supabase'e kaydediliyor...");
+    const { error } = await supabase
+      .from(TABLES.PROFILES)
+      .update({ expoPushToken: token })
+      .eq("id", userId);
+
+    if (error) {
+      console.error("Supabase token güncelleme hatası:", error);
+      return null;
+    }
+
+    console.log("Token başarıyla kaydedildi");
+    return token;
+  } catch (error) {
+    console.error("Push bildirim token alma hatası:", error);
+    return null;
   }
-  return token;
 };

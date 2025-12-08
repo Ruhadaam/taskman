@@ -38,3 +38,7 @@ yarn-error.*
 # android and ios
 /android
 /ios
+.idea
+/.idea
+idea
+/idea

@@ -8,6 +8,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<User | null>;
+  signUp: (email: string, password: string) => Promise<User | null>;
   signOut: () => Promise<void>;
   setUser: (user: User | null) => void;
 }
@@ -64,14 +65,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const { data, error } = await supabase
         .from(TABLES.PROFILES)
         .select("*")
-        .eq("email", supabaseUser.email)
+        .eq("id", supabaseUser.id)
         .single();
 
       if (data) {
-        setUser(data);
-        await AsyncStorage.setItem("user", JSON.stringify(data));
+        const normalizedUser = {
+          ...data,
+          // Uygulamada beklenen alanlar yoksa varsayılanlara düş
+          isAdmin: (data as any).isAdmin ?? false,
+          unseen: (data as any).unseen ?? [],
+          seen: (data as any).seen ?? [],
+        };
+        setUser(normalizedUser);
+        await AsyncStorage.setItem("user", JSON.stringify(normalizedUser));
       }
-      return data;
+      return data as User;
     } catch (error) {
       console.error("Kullanıcı dönüştürme hatası:", error);
       setUser(null);
@@ -120,8 +128,52 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const signUp = async (
+    email: string,
+    password: string
+  ): Promise<User | null> => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+      if (!data.user) return null;
+
+      const generatedName = email.split("@")[0];
+
+      // Create profile for new user
+      const { data: profile, error: profileError } = await supabase
+        .from(TABLES.PROFILES)
+        .insert({
+          id: data.user.id,
+          email: email,
+          name: generatedName,
+        })
+        .select()
+        .single();
+
+      if (profileError) throw profileError;
+
+      // Transform and set user
+      if (profile) {
+        setUser(profile);
+        await AsyncStorage.setItem("user", JSON.stringify(profile));
+
+        // Register for notifications
+        await registerForPushNotificationsAsync(profile.id);
+      }
+
+      return profile;
+    } catch (error) {
+      console.error("Kayıt hatası:", error);
+      throw error;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut, setUser }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, setUser }}>
       {children}
     </AuthContext.Provider>
   );

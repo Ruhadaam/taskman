@@ -1,24 +1,21 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   Modal,
   TextInput,
-  ScrollView,
   StyleSheet,
+  Platform,
 } from "react-native";
-import Icon from "react-native-vector-icons/MaterialIcons";
-import { Task, User } from "../../types";
+import { MaterialIcons as Icon } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { Task } from "../../types";
 
 interface CreateTaskModalProps {
   visible: boolean;
   onClose: () => void;
   newTask: Task;
-  users: User[];
-  showUserDropdown: boolean;
-  onUserDropdownToggle: () => void;
-  onUserSelect: (userId: string) => void;
   onTaskChange: (field: keyof Task, value: any) => void;
   onCreateTask: () => void;
 }
@@ -27,13 +24,28 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   visible,
   onClose,
   newTask,
-  users,
-  showUserDropdown,
-  onUserDropdownToggle,
-  onUserSelect,
   onTaskChange,
   onCreateTask,
 }) => {
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("tr-TR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      onTaskChange("createdAt", selectedDate);
+    }
+  };
+
   return (
     <Modal
       animationType="slide"
@@ -57,63 +69,50 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             onChangeText={(text) => onTaskChange("title", text)}
           />
 
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Görev Açıklaması"
-            value={newTask.description}
-            onChangeText={(text) => onTaskChange("description", text)}
-            multiline
-            numberOfLines={4}
-          />
-
-          <TouchableOpacity style={styles.input} onPress={onUserDropdownToggle}>
-            <Text style={styles.dropdownText}>
-              {newTask.assignedTo.length > 0
-                ? `${newTask.assignedTo.length} kullanıcı seçildi`
-                : "Kullanıcı Seç"}
-            </Text>
+          <TouchableOpacity
+            style={styles.datePickerButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <View style={styles.datePickerContent}>
+              <Icon name="calendar-today" size={20} color="#007AFF" />
+              <Text style={styles.datePickerText}>
+                {newTask.createdAt
+                  ? formatDate(newTask.createdAt)
+                  : "Tarih Seçin"}
+              </Text>
+            </View>
           </TouchableOpacity>
 
-          {showUserDropdown && (
-            <View style={styles.dropdownContainer}>
-              <ScrollView style={styles.dropdownList}>
-                {users.map((user) => (
-                  <TouchableOpacity
-                    key={user.id}
-                    style={[
-                      styles.dropdownItem,
-                      newTask.assignedTo.includes(user.id) &&
-                        styles.selectedItem,
-                    ]}
-                    onPress={() => onUserSelect(user.id)}
-                  >
-                    <Text style={styles.dropdownItemText}>{user.name}</Text>
-                    {newTask.assignedTo.includes(user.id) && (
-                      <Icon name="check" size={20} color="#007AFF" />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <TouchableOpacity
-                style={styles.submitButton}
-                onPress={onUserDropdownToggle}
-              >
-                <Text style={styles.submitButtonText}>Tamam</Text>
-              </TouchableOpacity>
-            </View>
+          {showDatePicker && (
+            <>
+              {Platform.OS === "ios" && (
+                <View style={styles.iosPickerContainer}>
+                  <View style={styles.iosPickerHeader}>
+                    <TouchableOpacity
+                      onPress={() => setShowDatePicker(false)}
+                      style={styles.iosPickerDoneButton}
+                    >
+                      <Text style={styles.iosPickerDoneText}>Tamam</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <DateTimePicker
+                    value={newTask.createdAt || new Date()}
+                    mode="date"
+                    display="spinner"
+                    onChange={handleDateChange}
+                  />
+                </View>
+              )}
+              {Platform.OS === "android" && (
+                <DateTimePicker
+                  value={newTask.createdAt || new Date()}
+                  mode="date"
+                  display="default"
+                  onChange={handleDateChange}
+                />
+              )}
+            </>
           )}
-
-          <TextInput
-            style={styles.input}
-            placeholder="Son Tarih (YYYY-MM-DD)"
-            value={newTask.dueDate.toISOString().split("T")[0]}
-            onChangeText={(text) => {
-              const date = new Date(text);
-              if (!isNaN(date.getTime())) {
-                onTaskChange("dueDate", date);
-              }
-            }}
-          />
 
           <TouchableOpacity style={styles.submitButton} onPress={onCreateTask}>
             <Text style={styles.submitButtonText}>Görev Oluştur</Text>
@@ -206,6 +205,42 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 16,
     color: "#333",
+  },
+  datePickerButton: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 15,
+    backgroundColor: "#fff",
+  },
+  datePickerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  datePickerText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  iosPickerContainer: {
+    marginBottom: 15,
+  },
+  iosPickerHeader: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  iosPickerDoneButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 5,
+  },
+  iosPickerDoneText: {
+    color: "#007AFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
 

@@ -1,52 +1,61 @@
-import React from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Modal,
-  ScrollView,
-  StyleSheet,
-} from "react-native";
-import Icon from "react-native-vector-icons/MaterialIcons";
-import { Task, User } from "../../types";
+import React, { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, Modal, StyleSheet, TextInput } from "react-native";
+import { MaterialIcons as Icon } from "@expo/vector-icons";
+import { Task } from "../../types";
 
 interface TaskDetailModalProps {
   visible: boolean;
   onClose: () => void;
   selectedTask: Task | null;
-  users: User[];
-  showUserDropdown: boolean;
-  showStatusDropdown: boolean;
-  onStatusDropdownToggle: () => void;
-  onUserDropdownToggle: () => void;
-  onUserSelect: (userId: string) => void;
-  onSaveUsers: () => void;
   onStatusChange: (
-    status: "waiting" | "in-progress" | "completed" | "past_due"
+    status: "waiting" | "completed"
   ) => void;
-  getInitials: (name: string) => string;
-  getRandomColor: (name: string) => string;
-  renderStatusDropdown: () => React.ReactNode;
   onDeleteTask: () => void;
+  isAdmin: boolean;
+  onSave: (title: string, description: string) => void;
 }
 
 const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   visible,
   onClose,
   selectedTask,
-  users,
-  showUserDropdown,
-  showStatusDropdown,
-  onStatusDropdownToggle,
-  onUserDropdownToggle,
-  onUserSelect,
-  onSaveUsers,
-  getInitials,
-  getRandomColor,
-  renderStatusDropdown,
   onDeleteTask,
+  isAdmin,
+  onSave,
 }) => {
   if (!selectedTask) return null;
+
+  const [editTitle, setEditTitle] = useState(selectedTask.title);
+  const [editDescription, setEditDescription] = useState(selectedTask.description || "");
+
+  useEffect(() => {
+    if (selectedTask) {
+      setEditTitle(selectedTask.title);
+      setEditDescription(selectedTask.description || "");
+    }
+  }, [selectedTask]);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "#34C759";
+      case "past_due":
+        return "#FF3B30";
+      default:
+        return "#007AFF";
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "Tamamlanmış";
+      case "past_due":
+        return "Dünden Kalan";
+      default:
+        return "Beklemede";
+    }
+  };
 
   return (
     <Modal
@@ -60,16 +69,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           style={[
             styles.modalContent,
             {
-              borderColor:
-                selectedTask.status === "completed"
-                  ? "#34C759"
-                  : selectedTask.status === "past_due"
-                  ? "#FF3B30"
-                  : selectedTask.status === "waiting"
-                  ? "#007AFF"
-                  : selectedTask.status === "in-progress"
-                  ? "#FF9500"
-                  : "#ffff",
+              borderColor: getStatusColor(selectedTask.status),
             },
           ]}
         >
@@ -77,152 +77,56 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             style={[
               styles.modalHeader,
               {
-                borderBottomColor:
-                  selectedTask.status === "completed"
-                    ? "#34C759"
-                    : selectedTask.status === "past_due"
-                    ? "#FF3B30"
-                    : selectedTask.status === "waiting"
-                    ? "#007AFF"
-                    : selectedTask.status === "in-progress"
-                    ? "#FF9500"
-                    : "#ffff",
+                borderBottomColor: getStatusColor(selectedTask.status),
               },
             ]}
           >
             <View style={styles.headerLeft}>
-              <Text style={styles.modalTitle}>{selectedTask.title}</Text>
+              <TextInput
+                style={styles.titleInput}
+                value={editTitle}
+                onChangeText={setEditTitle}
+                placeholder="Başlık"
+              />
             </View>
             <View style={styles.headerRight}>
-              <TouchableOpacity onPress={onStatusDropdownToggle}>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      backgroundColor:
-                        selectedTask.status === "completed"
-                          ? "#34C759"
-                          : selectedTask.status === "past_due"
-                          ? "#FF3B30"
-                          : selectedTask.status === "waiting"
-                          ? "#007AFF"
-                          : selectedTask.status === "in-progress"
-                          ? "#FF9500"
-                          : "#ffff",
-                    },
-                  ]}
-                >
-                  <Text style={styles.statusText}>{selectedTask.status}</Text>
-                </View>
-              </TouchableOpacity>
-              {showStatusDropdown && renderStatusDropdown()}
+
               <View style={styles.headerIcons}>
                 <TouchableOpacity
-                  style={styles.deleteIcon}
-                  onPress={onDeleteTask}
+                  style={[styles.actionButton, styles.deleteIcon]}
+
+
+                  onPress={() => {
+                 
+                    try {
+                      onDeleteTask();
+                    } catch (e) {
+                      console.error("Error calling onDeleteTask:", e);
+                    }
+                  }}
                 >
-                  <Icon name="delete" size={24} color="#8E8E93" />
+                  <Icon name="delete" size={20} color="#FF3B30" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={onClose}>
-                  <Icon name="close" size={24} color="#333" />
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.closeButton]}
+                  onPress={onClose}
+                >
+                  <Icon name="close" size={20} color="#333" />
                 </TouchableOpacity>
               </View>
             </View>
           </View>
 
-          <Text style={styles.detailDescription}>
-            {selectedTask.description}
-          </Text>
+
           <View style={styles.bottomContainer}>
-            <View style={styles.leftContainer}>
-              <View style={styles.dateContainer}>
-                <Icon
-                  name="event"
-                  size={16}
-                  color="#666"
-                  style={styles.dateIcon}
-                />
-                <Text style={styles.detailValue}>
-                  {selectedTask.dueDate
-                    ? new Date(selectedTask.dueDate).toLocaleDateString(
-                        "tr-TR",
-                        {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        }
-                      )
-                    : "Tarih belirtilmemiş"}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.rightContainer}>
-              <View style={styles.taskUsers}>
-                {selectedTask.assignedTo.slice(0, 3).map((userId) => {
-                  const user = users.find((u) => u.id.toString() === userId);
-                  return (
-                    <View
-                      key={userId}
-                      style={[
-                        styles.userBadge,
-                        {
-                          backgroundColor: getRandomColor(user?.name || ""),
-                        },
-                      ]}
-                    >
-                      <Text style={styles.initialsText}>
-                        {getInitials(user?.name || "")}
-                      </Text>
-                    </View>
-                  );
-                })}
-                {selectedTask.assignedTo.length > 3 && (
-                  <View
-                    style={[styles.userBadge, { backgroundColor: "#8E8E93" }]}
-                  >
-                    <Text style={styles.initialsText}>
-                      +{selectedTask.assignedTo.length - 3}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.editButton]}
-                onPress={onUserDropdownToggle}
-              >
-                <Icon name="add" size={20} color="#007AFF" />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={() => onSave(editTitle, editDescription)}
+            >
+              <Text style={styles.submitButtonText}>Kaydet</Text>
+            </TouchableOpacity>
           </View>
 
-          {showUserDropdown && (
-            <View style={styles.dropdownContainer}>
-              <ScrollView style={styles.dropdownList}>
-                {users.map((user) => (
-                  <TouchableOpacity
-                    key={user.id}
-                    style={[
-                      styles.dropdownItem,
-                      selectedTask.assignedTo.includes(user.id) &&
-                        styles.selectedItem,
-                    ]}
-                    onPress={() => onUserSelect(user.id)}
-                  >
-                    <Text style={styles.dropdownItemText}>{user.name}</Text>
-                    {selectedTask.assignedTo.includes(user.id) && (
-                      <Icon name="check" size={20} color="#007AFF" />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <TouchableOpacity
-                style={styles.submitButton}
-                onPress={onSaveUsers}
-              >
-                <Text style={styles.submitButtonText}>Kaydet</Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
       </View>
     </Modal>
@@ -286,6 +190,31 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 24,
   },
+  textArea: {
+    fontSize: 16,
+    color: "#333",
+    borderWidth: 1,
+    borderColor: "#eee",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+    minHeight: 100,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  titleInput: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#eee",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#fff",
+  },
   bottomContainer: {
     marginTop: "auto",
     paddingTop: 16,
@@ -327,35 +256,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 8,
   },
-  editButton: {
-    backgroundColor: "#E5F1FF",
-  },
-  dropdownContainer: {
-    maxHeight: 200,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    marginBottom: 15,
-    backgroundColor: "#fff",
-  },
-  dropdownList: {
-    maxHeight: 200,
-  },
-  dropdownItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  selectedItem: {
-    backgroundColor: "#f0f8ff",
-  },
-  dropdownItemText: {
-    fontSize: 16,
-    color: "#333",
-  },
   submitButton: {
     backgroundColor: "#007AFF",
     padding: 15,
@@ -391,6 +291,9 @@ const styles = StyleSheet.create({
   },
   deleteIcon: {
     padding: 4,
+  },
+  closeButton: {
+    backgroundColor: "#f5f5f5",
   },
 });
 

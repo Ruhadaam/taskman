@@ -1,32 +1,48 @@
 {
   "expo": {
-    "name": "Taskman",
+    "name": "Vzbel",
     "slug": "task-management-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "icon": "./assets/app-icon.png",
+    "userInterfaceStyle": "white",
     "splash": {
-      "backgroundColor": "#1A1A1A"
+      "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
-    "plugins": ["expo-notifications"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/app-icon.png",
+          "color": "#1A1A1A",
+          "mode": "preview"
+        }
+      ],
+      "expo-font",
+      "expo-asset"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.vzbel.vzbelapp",
+      "buildNumber": "1.0.0"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#1A1A1A"
+        "backgroundColor": "#ffffff"
       },
-      "package": "com.mmehel.taskmanagementapp"
+      "package": "com.vzbelapp",
+      "versionCode": 1
     },
     "web": {
-      "favicon": "./assets/icon.png"
+      "favicon": "./assets/app-icon.png"
     },
     "extra": {
       "eas": {
-        "projectId": "f57fde1c-c082-457a-a062-6b582c334352"
+        "projectId": "16215e95-d720-4998-aa19-db3edd4efcf9"
       }
     }
   }

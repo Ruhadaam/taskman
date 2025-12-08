@@ -10,7 +10,7 @@ import { supabase, TABLES } from "../config/lib";
 import { Notification } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import { MaterialIcons as Icon } from "@expo/vector-icons";
 
 const NotificationsScreen = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);

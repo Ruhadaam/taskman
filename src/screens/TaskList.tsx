@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { supabase, TABLES } from "../config/lib";
 import { Task, User } from "../types";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import { MaterialIcons as Icon } from "@expo/vector-icons";
 import {
   sendAdminNotification,
   sendNewTaskNotification,
@@ -27,13 +27,11 @@ const TaskList = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [newTask, setNewTask] = useState<Task>({
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [newTask, setNewTask] = useState<Omit<Task, 'id'>>({
     title: "",
     description: "",
-    assignedTo: [],
-    dueDate: new Date(),
     status: "waiting",
     createdAt: new Date(),
     createdBy: currentUser?.id || "",
@@ -98,20 +96,47 @@ const TaskList = () => {
   };
 
   const loadTasks = async () => {
-    try {
-      const { data: tasks, error } = await supabase
-        .from(TABLES.TASKS)
-        .select("*");
+    if (!currentUser?.id) return;
 
-      if (error) throw error;
+    try {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+
+      // Bugünün görevleri (tüm statüler)
+      const { data: todayTasks, error: todayError } = await supabase
+        .from(TABLES.TASKS)
+        .select("*")
+        .eq("createdBy", currentUser.id)
+        .gte("createdAt", todayStart.toISOString())
+        .lte("createdAt", todayEnd.toISOString())
+        .neq("status", "completed");
+
+      if (todayError) throw todayError;
+
+      // Önceki günlerden status="waiting" olanlar
+      const { data: waitingTasks, error: waitingError } = await supabase
+        .from(TABLES.TASKS)
+        .select("*")
+        .eq("createdBy", currentUser.id)
+        .eq("status", "waiting")
+        .lt("createdAt", todayStart.toISOString());
+
+      if (waitingError) throw waitingError;
+
+      // Birleştir ve tekrarları kaldır
+      const allTasks = [...(todayTasks || []), ...(waitingTasks || [])];
+      const uniqueTasks = Array.from(
+        new Map(allTasks.map((task) => [task.id, task])).values()
+      );
 
       const tasksList =
-        tasks?.map((task) => ({
+        uniqueTasks.map((task) => ({
           id: task.id,
           ...task,
-          dueDate: task.dueDate ? new Date(task.dueDate) : new Date(),
           createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
-          createdBy: task.createdBy || "",
+          createdBy: (task as any).createdby || (task as any).createdBy || "",
         })) || [];
 
       setTasks(tasksList);
@@ -125,57 +150,9 @@ const TaskList = () => {
     loadTasks();
   }, []);
 
-  const toggleUserSelection = (userId: string, isNewTask: boolean = true) => {
-    if (isNewTask) {
-      if (!newTask) return;
-      const isSelected = newTask.assignedTo.includes(userId);
-      const updatedAssignedTo = isSelected
-        ? newTask.assignedTo.filter((id) => id !== userId)
-        : [...newTask.assignedTo, userId];
-
-      setNewTask({
-        ...newTask,
-        assignedTo: updatedAssignedTo,
-      });
-    } else {
-      if (!selectedTask) return;
-      const isSelected = selectedTask.assignedTo.includes(userId);
-      const updatedAssignedTo = isSelected
-        ? selectedTask.assignedTo.filter((id) => id !== userId)
-        : [...selectedTask.assignedTo, userId];
-
-      setSelectedTask({
-        ...selectedTask,
-        assignedTo: updatedAssignedTo,
-      });
-    }
-  };
-
-  const handleAssignUsers = async () => {
-    if (!selectedTask?.id) return;
-
-    try {
-      const { error } = await supabase
-        .from(TABLES.TASKS)
-        .update({
-          assignedTo: selectedTask.assignedTo,
-          updatedAt: new Date().toISOString(),
-        })
-        .eq("id", selectedTask.id);
-
-      if (error) throw error;
-
-      setShowUserDropdown(false);
-      loadTasks();
-    } catch (error) {
-      console.error("Kullanıcı atama hatası:", error);
-      Alert.alert("Hata", "Kullanıcı atanırken bir hata oluştu");
-    }
-  };
-
   const handleCreateTask = async () => {
-    if (!newTask.title || !newTask.dueDate) {
-      Alert.alert("Hata", "Başlık ve son tarih zorunludur");
+    if (!newTask.title) {
+      Alert.alert("Hata", "Başlık zorunludur");
       return;
     }
 
@@ -185,29 +162,35 @@ const TaskList = () => {
     }
 
     try {
+      const selectedDate = newTask.createdAt || new Date();
+      const taskToCreate = {
+        ...newTask,
+        createdAt: selectedDate,
+        createdBy: currentUser.id,
+      };
+
       const { data, error } = await supabase
         .from(TABLES.TASKS)
-        .insert([
-          {
-            ...newTask,
-            dueDate: newTask.dueDate.toISOString(),
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            createdBy: currentUser.id,
-            status: "waiting",
-            assignedTo: newTask.assignedTo || [],
-          },
-        ])
+        .insert([taskToCreate])
         .select()
         .single();
-      sendNewTaskNotification(data);
       if (error) throw error;
+
+      // Only pass necessary data to avoid circular references
+      if (data) {
+        await sendNewTaskNotification({
+          id: data.id,
+          title: data.title,
+          description: data.description,
+          status: data.status,
+          createdAt: data.createdAt,
+          createdBy: data.createdBy
+        });
+      }
 
       setNewTask({
         title: "",
         description: "",
-        dueDate: new Date(),
-        assignedTo: [],
         status: "waiting",
         createdAt: new Date(),
         createdBy: currentUser.id,
@@ -215,13 +198,15 @@ const TaskList = () => {
       setModalVisible(false);
       loadTasks();
     } catch (error) {
-      console.error("Görev oluşturma hatası:", error);
+      console.error("Görev oluşturma hatası:", (error as any).message);
       Alert.alert("Hata", "Görev oluşturulurken bir hata oluştu");
     }
   };
+  //...
+
 
   const handleStatusChange = async (
-    newStatus: "waiting" | "in-progress" | "completed" | "past_due"
+    newStatus: "waiting" | "completed" | "past_due"
   ) => {
     if (!selectedTask?.id) return;
 
@@ -230,7 +215,6 @@ const TaskList = () => {
         .from(TABLES.TASKS)
         .update({
           status: newStatus,
-          updatedAt: new Date().toISOString(),
         })
         .eq("id", selectedTask.id);
 
@@ -246,19 +230,30 @@ const TaskList = () => {
   };
 
   const handleDeleteTask = async () => {
-    if (!selectedTask?.id) return;
+    console.log("Attempting to delete task:", selectedTask?.id);
+    if (!selectedTask?.id) {
+      console.error("No task ID selected");
+      return;
+    }
+
     try {
-      const { error } = await supabase
+      const { error, count, data } = await supabase
         .from(TABLES.TASKS)
         .delete()
-        .eq("id", selectedTask.id);
+        .eq("id", selectedTask.id)
+        .select();
+
 
       if (error) throw error;
+      if (count === 0) {
+        throw new Error("Görev silinemedi (bulunamadı veya yetki yok).");
+      }
 
       setDetailModalVisible(false);
       loadTasks();
     } catch (error) {
       console.error("Görev silinirken hata:", error);
+      Alert.alert("Hata", "Görev silinemedi: " + (error as any).message);
     }
   };
 
@@ -267,7 +262,6 @@ const TaskList = () => {
 
     const statuses = [
       { value: "waiting", color: "#007AFF" },
-      { value: "in-progress", color: "#FF9500" },
       { value: "completed", color: "#34C759" },
       { value: "past_due", color: "#FF3B30" },
     ];
@@ -284,10 +278,9 @@ const TaskList = () => {
             onPress={() =>
               handleStatusChange(
                 status.value as
-                  | "waiting"
-                  | "in-progress"
-                  | "completed"
-                  | "past_due"
+                | "waiting"
+                | "completed"
+                | "past_due"
               )
             }
           >
@@ -296,6 +289,29 @@ const TaskList = () => {
         ))}
       </View>
     );
+  };
+
+  const handleCompleteTask = async (taskId: string) => {
+    // Optimistic update: Remove from list immediately (visual delay is in TaskCard)
+    setTasks((currentTasks) => currentTasks.filter((t) => t.id !== taskId));
+
+    try {
+      const { error } = await supabase
+        .from(TABLES.TASKS)
+        .update({ status: "completed" })
+        .eq("id", taskId);
+
+      if (error) {
+        throw error;
+      }
+
+      // No need to reload tasks as we already removed it locally
+    } catch (error) {
+      console.error("Görev tamamlama hatası:", error);
+      Alert.alert("Hata", "Görev tamamlanırken bir hata oluştu");
+      // Revert if needed (could reload tasks)
+      loadTasks();
+    }
   };
 
   return (
@@ -320,6 +336,7 @@ const TaskList = () => {
               setSelectedTask(item);
               setDetailModalVisible(true);
             }}
+            onComplete={handleCompleteTask}
             getInitials={getInitials}
             getRandomColor={getRandomColor}
           />
@@ -332,10 +349,6 @@ const TaskList = () => {
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         newTask={newTask}
-        users={users}
-        showUserDropdown={showUserDropdown}
-        onUserDropdownToggle={() => setShowUserDropdown(!showUserDropdown)}
-        onUserSelect={(userId) => toggleUserSelection(userId)}
         onTaskChange={(field, value) =>
           setNewTask({ ...newTask, [field]: value })
         }
@@ -353,13 +366,9 @@ const TaskList = () => {
           setShowStatusDropdown(!showStatusDropdown)
         }
         onUserDropdownToggle={() => setShowUserDropdown(!showUserDropdown)}
-        onUserSelect={(userId) => toggleUserSelection(userId, false)}
-        onSaveUsers={handleAssignUsers}
-        onStatusChange={handleStatusChange}
-        getInitials={getInitials}
-        getRandomColor={getRandomColor}
-        renderStatusDropdown={renderStatusDropdown}
+        isAdmin={currentUser?.isAdmin || false}
         onDeleteTask={handleDeleteTask}
+        onSave={() => { }} // Placeholder as TaskList doesn't seem to have onSave yet
       />
 
       <Modal
@@ -457,8 +466,11 @@ const styles = StyleSheet.create({
   },
   statusDropdown: {
     position: "absolute",
-    top: 40,
-    right: 40,
+    top: 40, borderBottomColor: "#ddd",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    height: 60,
     backgroundColor: "#fff",
     borderRadius: 8,
     shadowColor: "#000",
@@ -468,8 +480,8 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    elevation: 5,
-    zIndex: 1000,
+    elevation: 10,
+    zIndex: 9999,
   },
   statusDropdownItem: {
     paddingHorizontal: 16,
