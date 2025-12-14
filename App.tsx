@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { StyleSheet, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
+import { TaskProvider } from "./src/context/TaskContext";
 import { setupNotifications } from "./src/services/notificationService";
 import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
@@ -14,6 +15,7 @@ import UserList from "./src/screens/UserList";
 import TaskList from "./src/screens/TaskList";
 import UserTaskList from "./src/screens/UserTaskList";
 import NotificationsScreen from "./src/screens/NotificationsScreen";
+import UserTabNavigator from "./src/navigation/UserTabNavigator";
 
 const Stack = createStackNavigator();
 
@@ -27,7 +29,9 @@ const App = () => {
       <View style={styles.container}>
         <StatusBar style="dark" />
         <AuthProvider>
-          <RootNavigator />
+          <TaskProvider>
+            <RootNavigator />
+          </TaskProvider>
         </AuthProvider>
       </View>
     </SafeAreaProvider>
@@ -83,7 +87,7 @@ const RootNavigator = () => {
             ) : (
               <Stack.Screen
                 name="UserDashboard"
-                component={UserDashboard}
+                component={UserTabNavigator}
                 options={{ title: "Kullanıcı Paneli" }}
               />
             )}

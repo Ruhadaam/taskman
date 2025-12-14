@@ -20,6 +20,7 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 import { useAuth } from "../context/AuthContext";
+import { useTasks } from "../context/TaskContext"; // Import useTasks
 import { supabase, TABLES } from "../config/lib";
 import { Task, User } from "../types";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
@@ -40,7 +41,9 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function UserDashboard() {
   const { user, signOut } = useAuth();
   const navigation = useNavigation<NavigationProp>();
-  const [tasks, setTasks] = useState<Task[]>([]);
+  // Use Global Task Context
+  const { tasks, loadTasks, addTask, updateTaskStatus, updateTask, deleteTask } = useTasks();
+
   const [users, setUsers] = useState<User[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -64,6 +67,8 @@ export default function UserDashboard() {
 
   useFocusEffect(
     React.useCallback(() => {
+      // We rely on context state, but we can trigger a refresh if needed.
+      // Context loads initial tasks on mount.
       loadTasks();
       loadUsers();
     }, [])
@@ -100,97 +105,37 @@ export default function UserDashboard() {
     }
   };
 
-  const loadTasks = async () => {
+  // Filter tasks for "Duties" view from global tasks
+  useEffect(() => {
     if (!user?.id) return;
 
-    try {
-      // Bugünün başlangıcı ve sonu
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const todayEnd = new Date();
-      todayEnd.setHours(23, 59, 59, 999);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
 
-      let tasksList: Task[] = [];
+    const duties = tasks.filter(task => {
+      const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
+      const isToday = taskDate >= todayStart && taskDate <= todayEnd;
+      const isPastWaiting = task.status === 'waiting' && taskDate < todayStart;
+      const isCompleted = task.status === 'completed';
 
-      if (user.isAdmin) {
-        // Admin: Bugün eklenen tüm taskler VEYA önceki günlerden waiting olanlar
+      // Filter based on "Duties" definition: Today's tasks OR Past waiting tasks.
+      // Also respect completion if needed, but usually we show completed todays tasks.
 
-        // 1. Bugün eklenen tüm taskler
-        const { data: todayTasks, error: todayError } = await supabase
-          .from(TABLES.TASKS)
-          .select("*")
-          .gte("createdAt", todayStart.toISOString())
-          .lte("createdAt", todayEnd.toISOString())
-          .neq("status", "completed");
+      // If it's completed, we show it if it was created today. 
+      // If it's completed and from past, we typically hide it from "Current Duties" 
+      // unless we want to show history. Let's stick to the previous query logic:
+      // Previous logic: 
+      // 1. Today's tasks (all statuses except maybe completed if filtered out later)
+      // 2. Past waiting tasks.
 
-        if (todayError) throw todayError;
+      if (isToday) return true;
+      if (isPastWaiting) return true;
 
-        // 2. Önceki günlerden status="waiting" olan taskler
-        const { data: waitingTasks, error: waitingError } = await supabase
-          .from(TABLES.TASKS)
-          .select("*")
-          .eq("status", "waiting")
-          .lt("createdAt", todayStart.toISOString());
+      return false;
+    });
 
-        if (waitingError) throw waitingError;
-
-        // Birleştir ve tekrarları kaldır
-        const allTasks = [...(todayTasks || []), ...(waitingTasks || [])];
-        const uniqueTasks = Array.from(
-          new Map(allTasks.map((task) => [task.id, task])).values()
-        );
-
-        tasksList =
-          uniqueTasks.map((task) => ({
-            ...task,
-            createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
-            createdBy: (task as any).createdby || (task as any).createdBy || "",
-          })) || [];
-      } else {
-        // Normal kullanıcı: Sadece kendi görevlerinde aynı filtre
-
-        // 1. Bugün eklenen tüm taskler (kendi taskleri)
-        const { data: todayTasks, error: todayError } = await supabase
-          .from(TABLES.TASKS)
-          .select("*")
-          .eq("createdBy", user.id)
-          .gte("createdAt", todayStart.toISOString())
-          .lte("createdAt", todayEnd.toISOString())
-          .neq("status", "completed");
-
-        if (todayError) throw todayError;
-
-        // 2. Önceki günlerden status="waiting" olan taskler (kendi taskleri)
-        const { data: waitingTasks, error: waitingError } = await supabase
-          .from(TABLES.TASKS)
-          .select("*")
-          .eq("createdBy", user.id)
-          .eq("status", "waiting")
-          .lt("createdAt", todayStart.toISOString());
-
-        if (waitingError) throw waitingError;
-
-        // Birleştir ve tekrarları kaldır
-        const allTasks = [...(todayTasks || []), ...(waitingTasks || [])];
-        const uniqueTasks = Array.from(
-          new Map(allTasks.map((task) => [task.id, task])).values()
-        );
-
-        tasksList =
-          uniqueTasks.map((task) => ({
-            ...task,
-            createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
-            createdBy: (task as any).createdby || (task as any).createdBy || "",
-          })) || [];
-      }
-
-      setTasks(tasksList);
-    } catch (error) {
-      console.error("Görevler yüklenirken hata:", error);
-    }
-  };
-
-  useEffect(() => {
     const sortTasks = (list: Task[]) => {
       return [...list].sort((a, b) => {
         // Önce tamamlanan durumuna göre sırala (tamamlanan altta)
@@ -209,11 +154,8 @@ export default function UserDashboard() {
       });
     };
 
-    // Backend'den zaten filtrelenmiş data geliyor, sadece sıralama uygula
-    // Completed taskler loadTasks ile gelmez, ama runtime'da tamamlanınca listeden düşmeli.
-    // Bu filter runtime'da tamamlananları gizler.
-    setFilteredTasks(sortTasks(tasks.filter((task) => task.status !== "completed")));
-  }, [tasks, hideCompleted]);
+    setFilteredTasks(sortTasks(duties.filter((task) => task.status !== "completed")));
+  }, [tasks, hideCompleted, user?.id]);
 
   const getInitials = (name: string) => {
     return name
@@ -244,14 +186,7 @@ export default function UserDashboard() {
     return colors[index];
   };
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      navigation.navigate("LoginScreen");
-    } catch (error) {
-      console.error("Çıkış yapılırken hata oluştu:", error);
-    }
-  };
+
 
   const handleCreateTask = async () => {
     if (!newTask.title) {
@@ -265,22 +200,14 @@ export default function UserDashboard() {
     }
 
     try {
-      const selectedDate = newTask.createdAt || new Date();
-      const { data, error } = await supabase
-        .from(TABLES.TASKS)
-        .insert([
-          {
-            title: newTask.title,
-            description: newTask.description || "",
-            status: "waiting",
-            createdAt: selectedDate.toISOString(),
-            createdBy: user.id,
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) throw error;
+      await addTask({
+        title: newTask.title,
+        description: newTask.description || "",
+        status: "waiting",
+        // @ts-ignore
+        createdAt: newTask.createdAt || new Date(),
+        createdBy: user.id
+      });
 
       setNewTask({
         title: "",
@@ -290,7 +217,6 @@ export default function UserDashboard() {
         createdBy: user.id,
       });
       setModalVisible(false);
-      loadTasks();
     } catch (error) {
       console.error("Görev oluşturma hatası:", error);
       Alert.alert("Hata", "Görev oluşturulurken bir hata oluştu");
@@ -303,18 +229,9 @@ export default function UserDashboard() {
     if (!selectedTask?.id) return;
 
     try {
-      const { error } = await supabase
-        .from(TABLES.TASKS)
-        .update({
-          status: newStatus,
-        })
-        .eq("id", selectedTask.id);
-
-      if (error) throw error;
-
+      await updateTaskStatus(selectedTask.id, newStatus);
       setSelectedTask({ ...selectedTask, status: newStatus });
       setShowStatusDropdown(false);
-      loadTasks();
     } catch (error) {
       console.error("Durum güncellenirken hata:", error);
       Alert.alert("Hata", "Durum güncellenirken bir hata oluştu");
@@ -324,6 +241,8 @@ export default function UserDashboard() {
   const toggleTaskDone = (task: Task) => {
     if (!task.id) return;
 
+    // Optimistic toggle logic stays similar but calls context method
+
     // 1. If currently pending completion (user clicked check), cancel it.
     if (completingTaskIds.has(task.id)) {
       setCompletingTaskIds((prev) => {
@@ -331,12 +250,12 @@ export default function UserDashboard() {
         next.delete(task.id!);
         return next;
       });
-      return; // Abort, no DB call.
+      return; // Abort
     }
 
-    // 2. If already completed, this is an "Undo". Update immediately (no wait needed for restoring).
+    // 2. If already completed, Undo immediately.
     if (task.status === "completed") {
-      updateTaskStatus(task, "waiting");
+      updateContextTaskStatus(task, "waiting");
       return;
     }
 
@@ -345,67 +264,39 @@ export default function UserDashboard() {
 
     setTimeout(() => {
       setCompletingTaskIds((currentSet) => {
-        // Re-check if it's still there (hasn't been cancelled by user unchecking)
         if (currentSet.has(task.id!)) {
-          // Perform the actual DB update
-          updateTaskStatus(task, "completed");
+          // Perform the actual update via context
+          updateContextTaskStatus(task, "completed");
 
-          // Cleanup ID
           const next = new Set(currentSet);
           next.delete(task.id!);
           return next;
         }
         return currentSet;
       });
-    }, 1000); // 1 second delay as requested
+    }, 1000);
   };
 
-  const updateTaskStatus = async (task: Task, newStatus: Task["status"]) => {
+  const updateContextTaskStatus = async (task: Task, newStatus: Task["status"]) => {
     if (newStatus === "completed") {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     }
-
-    setTasks((prevTasks) => {
-      return prevTasks.map((t) =>
-        t.id === task.id ? { ...t, status: newStatus } : t
-      );
-    });
 
     if (selectedTask && selectedTask.id === task.id) {
       setSelectedTask({ ...selectedTask, status: newStatus });
     }
 
-    try {
-      const { error } = await supabase
-        .from(TABLES.TASKS)
-        .update({ status: newStatus })
-        .eq("id", task.id);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error("Durum güncellenirken hata:", error);
-      Alert.alert("Hata", "Durum güncellenirken hata oluştu");
-      // Revert optimism
-      setTasks((prevTasks) => {
-        return prevTasks.map((t) =>
-          t.id === task.id ? { ...t, status: task.status } : t
-        );
-      });
+    // Use context method
+    if (task.id) {
+      await updateTaskStatus(task.id, newStatus);
     }
   };
 
   const handleDeleteTask = async () => {
     if (!selectedTask?.id) return;
     try {
-      const { error } = await supabase
-        .from(TABLES.TASKS)
-        .delete()
-        .eq("id", selectedTask.id);
-
-      if (error) throw error;
-
+      await deleteTask(selectedTask.id);
       setDetailModalVisible(false);
-      loadTasks();
     } catch (error) {
       console.error("Görev silinirken hata:", error);
     }
@@ -414,14 +305,8 @@ export default function UserDashboard() {
   const handleSaveTask = async (title: string, description: string) => {
     if (!selectedTask?.id) return;
     try {
-      const { error } = await supabase
-        .from(TABLES.TASKS)
-        .update({ title, description })
-        .eq("id", selectedTask.id);
-      if (error) throw error;
-
+      await updateTask(selectedTask.id, { title, description });
       setSelectedTask({ ...selectedTask, title, description });
-      loadTasks();
       setDetailModalVisible(false);
     } catch (error) {
       console.error("Görev güncellenirken hata:", error);
@@ -502,9 +387,7 @@ export default function UserDashboard() {
           >
 
           </TouchableOpacity>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
-            <Icon name="logout" size={24} color="#FF3B30" />
-          </TouchableOpacity>
+
         </View>
       </View>
 
