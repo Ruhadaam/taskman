@@ -31,17 +31,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     }, [user]);
 
-    const loadTasks = async () => {
+    const loadTasks = React.useCallback(async () => {
         if (!user?.id) return;
 
         try {
             setLoading(true);
-            // Fetch broader range of tasks (e.g., all tasks not completed or completed recently, future tasks)
-            // For simplicity, let's fetch ALL tasks for now and filter client-side if needed, 
-            // or at least all active tasks + future tasks. 
-            // Actually, fetching *all* might be heavy if there are thousands. 
-            // Let's fetch everything for now as per requirement to synchronize.
-
             let query = supabase.from(TABLES.TASKS).select("*");
 
             if (!user.isAdmin) {
@@ -58,7 +52,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
                 createdBy: (task as any).createdby || (task as any).createdBy || "",
             })) || [];
 
-            // Sort by date defaults (can be re-sorted in UI)
             tasksList.sort((a, b) => {
                 const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
                 const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -71,9 +64,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         } finally {
             setLoading(false);
         }
-    };
+    }, [user]);
 
-    const addTask = async (newTask: Omit<Task, "id" | "createdAt">) => {
+    const addTask = React.useCallback(async (newTask: Omit<Task, "id" | "createdAt">) => {
         if (!user?.id) return;
 
         const tempId = Math.random().toString();
@@ -85,11 +78,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
             createdBy: user.id
         };
 
-        // Optimistic update
         setTasks(prev => [...prev, optimisticTask]);
 
         try {
-            const selectedDate = (newTask as any).createdAt || new Date(); // Handle if createdAt is passed
+            const selectedDate = (newTask as any).createdAt || new Date();
             const { data, error } = await supabase
                 .from(TABLES.TASKS)
                 .insert([
@@ -106,7 +98,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
 
             if (error) throw error;
 
-            // Replace optimistic task with real one
             const createdTask = {
                 ...data,
                 createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
@@ -118,12 +109,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         } catch (error) {
             console.error("Görev ekleme hatası:", error);
             Alert.alert("Hata", "Görev eklenirken bir hata oluştu");
-            setTasks(prev => prev.filter(t => t.id !== tempId)); // Revert
+            setTasks(prev => prev.filter(t => t.id !== tempId));
         }
-    };
+    }, [user]);
 
-    const updateTaskStatus = async (taskId: string, status: Task["status"]) => {
-        // Optimistic
+    const updateTaskStatus = React.useCallback(async (taskId: string, status: Task["status"]) => {
         setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status } : t));
 
         try {
@@ -135,13 +125,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
             if (error) throw error;
         } catch (error) {
             console.error("Status update error", error);
-            // Revert - we would need the old status, but for simplicity let's just reload or ignore for now
-            // Ideally we fetch the specific task again or store prev state before update.
-            loadTasks(); // Safe fallback
+            loadTasks();
         }
-    };
+    }, [loadTasks]);
 
-    const updateTask = async (taskId: string, updates: Partial<Task>) => {
+    const updateTask = React.useCallback(async (taskId: string, updates: Partial<Task>) => {
         setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
 
         try {
@@ -155,9 +143,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
             console.error("Update error", error);
             loadTasks();
         }
-    };
+    }, [loadTasks]);
 
-    const deleteTask = async (taskId: string) => {
+    const deleteTask = React.useCallback(async (taskId: string) => {
         setTasks(prev => prev.filter(t => t.id !== taskId));
         try {
             const { error } = await supabase
@@ -170,10 +158,14 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
             console.error("Delete error", error);
             loadTasks();
         }
-    };
+    }, [loadTasks]);
+
+    const value = React.useMemo(() => ({
+        tasks, loading, loadTasks, addTask, updateTaskStatus, updateTask, deleteTask
+    }), [tasks, loading, loadTasks, addTask, updateTaskStatus, updateTask, deleteTask]);
 
     return (
-        <TaskContext.Provider value={{ tasks, loading, loadTasks, addTask, updateTaskStatus, updateTask, deleteTask }}>
+        <TaskContext.Provider value={value}>
             {children}
         </TaskContext.Provider>
     );
