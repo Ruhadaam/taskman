@@ -25,7 +25,6 @@ const UserTaskList = () => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newTask, setNewTask] = useState<Omit<Task, 'id'>>({
     title: "",
-    description: "",
     status: "waiting",
     createdAt: new Date(),
     createdBy: currentUser?.id || "",
@@ -145,7 +144,6 @@ const UserTaskList = () => {
         await sendNewTaskNotification({
           id: data.id,
           title: data.title,
-          description: data.description,
           status: data.status,
           createdAt: data.createdAt,
           createdBy: data.createdBy
@@ -154,7 +152,6 @@ const UserTaskList = () => {
 
       setNewTask({
         title: "",
-        description: "",
         status: "waiting",
         createdAt: new Date(),
         createdBy: currentUser.id,
@@ -247,16 +244,16 @@ const UserTaskList = () => {
     }
   };
 
-  const handleSaveTask = async (title: string, description: string) => {
+  const handleSaveTask = async (title: string) => {
     if (!selectedTask?.id) return;
     try {
       const { error } = await supabase
         .from(TABLES.TASKS)
-        .update({ title, description })
+        .update({ title })
         .eq("id", selectedTask.id);
       if (error) throw error;
 
-      setSelectedTask({ ...selectedTask, title, description });
+      setSelectedTask({ ...selectedTask, title });
       loadTasks();
       setDetailModalVisible(false);
     } catch (error) {

@@ -12,7 +12,7 @@ interface TaskDetailModalProps {
   ) => void;
   onDeleteTask: () => void;
   isAdmin: boolean;
-  onSave: (title: string, description: string) => void;
+  onSave: (title: string) => void;
 }
 
 const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
@@ -26,12 +26,10 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   if (!selectedTask) return null;
 
   const [editTitle, setEditTitle] = useState(selectedTask.title);
-  const [editDescription, setEditDescription] = useState(selectedTask.description || "");
 
   useEffect(() => {
     if (selectedTask) {
       setEditTitle(selectedTask.title);
-      setEditDescription(selectedTask.description || "");
     }
   }, [selectedTask]);
 
@@ -121,7 +119,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           <View style={styles.bottomContainer}>
             <TouchableOpacity
               style={styles.submitButton}
-              onPress={() => onSave(editTitle, editDescription)}
+              onPress={() => onSave(editTitle)}
             >
               <Text style={styles.submitButtonText}>Kaydet</Text>
             </TouchableOpacity>
@@ -183,25 +181,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "bold",
     textTransform: "uppercase",
-  },
-  detailDescription: {
-    fontSize: 16,
-    color: "#666",
-    marginBottom: 16,
-    lineHeight: 24,
-  },
-  textArea: {
-    fontSize: 16,
-    color: "#333",
-    borderWidth: 1,
-    borderColor: "#eee",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: "#fff",
-    minHeight: 100,
-    marginTop: 8,
-    marginBottom: 8,
   },
   titleInput: {
     fontSize: 20,

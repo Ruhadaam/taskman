@@ -72,9 +72,6 @@ export default function UpcomingTasksScreen() {
             <View style={[styles.item, isCompleted && styles.itemCompleted]}>
                 <View style={styles.itemContent}>
                     <Text style={[styles.itemTitle, isCompleted && styles.itemTextCompleted]}>{task.title}</Text>
-                    {!!task.description && (
-                        <Text style={styles.itemDescription} numberOfLines={1}>{task.description}</Text>
-                    )}
                 </View>
                 <View style={styles.statusIndicator}>
                     {/* Only Visual Indicator */}
@@ -130,6 +127,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: "#fff",
+        
     },
     item: {
         backgroundColor: "white",
@@ -165,11 +163,6 @@ const styles = StyleSheet.create({
     itemTextCompleted: {
         textDecorationLine: 'line-through',
         color: '#999',
-    },
-    itemDescription: {
-        fontSize: 14,
-        color: '#666',
-        marginTop: 4,
     },
     statusIndicator: {
         padding: 0,

@@ -20,11 +20,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+    let sessionChecked = false;
+
     // AsyncStorage'dan kullanıcı bilgisini yükle
     const loadStoredUser = async () => {
       try {
         const storedUser = await AsyncStorage.getItem("user");
-        if (storedUser) {
+        if (storedUser && isMounted) {
           setUser(JSON.parse(storedUser));
         }
       } catch (error) {
@@ -35,38 +38,96 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loadStoredUser();
 
     // Mevcut oturumu kontrol et
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        transformSupabaseUser(session.user);
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("Session kontrol hatası:", error);
+          if (isMounted) {
+            setLoading(false);
+            sessionChecked = true;
+          }
+          return;
+        }
+
+        if (session?.user && isMounted) {
+          await transformSupabaseUser(session.user);
+        }
+        
+        if (isMounted) {
+          setLoading(false);
+          sessionChecked = true;
+        }
+      } catch (error) {
+        console.error("Session kontrol hatası:", error);
+        if (isMounted) {
+          setLoading(false);
+          sessionChecked = true;
+        }
       }
-      setLoading(false);
-    });
+    };
+
+    checkSession();
 
     // Auth state değişikliklerini dinle
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        await transformSupabaseUser(session.user);
-      } else {
-        setUser(null);
-        await AsyncStorage.removeItem("user");
+      // İlk yükleme sırasında getSession zaten çalıştıysa, sadece değişiklikleri dinle
+      if (!sessionChecked) return;
+
+      try {
+        if (session?.user && isMounted) {
+          await transformSupabaseUser(session.user);
+        } else if (isMounted) {
+          setUser(null);
+          await AsyncStorage.removeItem("user");
+        }
+      } catch (error) {
+        console.error("Auth state change hatası:", error);
       }
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // Timeout: 5 saniye sonra loading'i false yap (fallback)
+    const timeout = setTimeout(() => {
+      if (isMounted && !sessionChecked) {
+        console.warn("Auth yükleme timeout - loading false yapılıyor");
+        setLoading(false);
+        sessionChecked = true;
+      }
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const transformSupabaseUser = async (
     supabaseUser: any
   ): Promise<User | null> => {
     try {
+      if (!supabaseUser?.id) {
+        console.error("Geçersiz kullanıcı bilgisi");
+        setUser(null);
+        await AsyncStorage.removeItem("user");
+        return null;
+      }
+
       const { data, error } = await supabase
         .from(TABLES.PROFILES)
         .select("*")
         .eq("id", supabaseUser.id)
         .single();
+
+      if (error) {
+        console.error("Profil getirme hatası:", error);
+        setUser(null);
+        await AsyncStorage.removeItem("user");
+        return null;
+      }
 
       if (data) {
         const normalizedUser = {
@@ -77,13 +138,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           seen: (data as any).seen ?? [],
         };
         setUser(normalizedUser);
-        await AsyncStorage.setItem("user", JSON.stringify(normalizedUser));
+        try {
+          await AsyncStorage.setItem("user", JSON.stringify(normalizedUser));
+        } catch (storageError) {
+          console.error("AsyncStorage kayıt hatası:", storageError);
+          // Storage hatası kritik değil, devam et
+        }
+        return normalizedUser as User;
       }
-      return data as User;
+      
+      return null;
     } catch (error) {
       console.error("Kullanıcı dönüştürme hatası:", error);
       setUser(null);
-      await AsyncStorage.removeItem("user");
+      try {
+        await AsyncStorage.removeItem("user");
+      } catch (storageError) {
+        console.error("AsyncStorage silme hatası:", storageError);
+      }
       return null;
     }
   };

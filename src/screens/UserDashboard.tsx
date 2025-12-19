@@ -51,7 +51,6 @@ export default function UserDashboard() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newTask, setNewTask] = useState<Task>({
     title: "",
-    description: "",
     status: "waiting",
     createdAt: new Date(),
     createdBy: user?.id || "",
@@ -202,7 +201,6 @@ export default function UserDashboard() {
     try {
       await addTask({
         title: newTask.title,
-        description: newTask.description || "",
         status: "waiting",
         // @ts-ignore
         createdAt: newTask.createdAt || new Date(),
@@ -211,7 +209,6 @@ export default function UserDashboard() {
 
       setNewTask({
         title: "",
-        description: "",
         status: "waiting",
         createdAt: new Date(),
         createdBy: user.id,
@@ -302,11 +299,11 @@ export default function UserDashboard() {
     }
   };
 
-  const handleSaveTask = async (title: string, description: string) => {
+  const handleSaveTask = async (title: string) => {
     if (!selectedTask?.id) return;
     try {
-      await updateTask(selectedTask.id, { title, description });
-      setSelectedTask({ ...selectedTask, title, description });
+      await updateTask(selectedTask.id, { title });
+      setSelectedTask({ ...selectedTask, title });
       setDetailModalVisible(false);
     } catch (error) {
       console.error("Görev güncellenirken hata:", error);
@@ -458,11 +455,6 @@ export default function UserDashboard() {
                 >
                   {item.title}
                 </Text>
-                {!!item.description && (
-                  <Text style={styles.todoDescription} numberOfLines={2}>
-                    {item.description}
-                  </Text>
-                )}
 
               </TouchableOpacity>
             </View>
@@ -709,11 +701,6 @@ const styles = StyleSheet.create({
   todoTitleCompleted: {
     color: "#8E8E93",
     textDecorationLine: "line-through",
-  },
-  todoDescription: {
-    fontSize: 13,
-    color: "#666",
-    marginBottom: 4,
   },
   todoMetaRow: {
     flexDirection: "row",

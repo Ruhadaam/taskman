@@ -66,6 +66,34 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     }, [user]);
 
+    const toTurkeyISOString = (date: Date) => {
+        const turkeyOffset = 3 * 60; // UTC+3 in minutes
+
+        const pad = (num: number) => num.toString().padStart(2, '0');
+        const pad3 = (num: number) => num.toString().padStart(3, '0');
+
+        // 1. Get the absolute UTC time in milliseconds
+        const utcMillis = date.getTime();
+
+        // 2. Add Turkey's offset (3 hours) to get "Turkey Time" as if it were UTC
+        const turkeyTimeMillis = utcMillis + (turkeyOffset * 60 * 1000);
+
+        // 3. Create a new Date object representing this shifted time
+        const turkeyDate = new Date(turkeyTimeMillis);
+
+        // 4. Extract UTC components from this shifted date
+        const yyyy = turkeyDate.getUTCFullYear();
+        const MM = pad(turkeyDate.getUTCMonth() + 1);
+        const dd = pad(turkeyDate.getUTCDate());
+        const HH = pad(turkeyDate.getUTCHours());
+        const mm = pad(turkeyDate.getUTCMinutes());
+        const ss = pad(turkeyDate.getUTCSeconds());
+        const sss = pad3(turkeyDate.getUTCMilliseconds());
+
+        // 5. Construct the ISO string with the explicit Z offset to treat as UTC
+        return `${yyyy}-${MM}-${dd}T${HH}:${mm}:${ss}.${sss}Z`;
+    };
+
     const addTask = React.useCallback(async (newTask: Omit<Task, "id" | "createdAt">) => {
         if (!user?.id) return;
 
@@ -81,15 +109,18 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         setTasks(prev => [...prev, optimisticTask]);
 
         try {
-            const selectedDate = (newTask as any).createdAt || new Date();
+            const dateObj = (newTask as any).createdAt || new Date();
+            const selectedDate = dateObj instanceof Date ? dateObj : new Date(dateObj);
+
+            const turkeyDateString = toTurkeyISOString(selectedDate);
+
             const { data, error } = await supabase
                 .from(TABLES.TASKS)
                 .insert([
                     {
                         title: newTask.title,
-                        description: newTask.description || "",
                         status: "waiting",
-                        createdAt: selectedDate instanceof Date ? selectedDate.toISOString() : selectedDate,
+                        createdAt: turkeyDateString,
                         createdBy: user.id,
                     },
                 ])

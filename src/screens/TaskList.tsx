@@ -31,7 +31,6 @@ const TaskList = () => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [newTask, setNewTask] = useState<Omit<Task, 'id'>>({
     title: "",
-    description: "",
     status: "waiting",
     createdAt: new Date(),
     createdBy: currentUser?.id || "",
@@ -181,7 +180,6 @@ const TaskList = () => {
         await sendNewTaskNotification({
           id: data.id,
           title: data.title,
-          description: data.description,
           status: data.status,
           createdAt: data.createdAt,
           createdBy: data.createdBy
@@ -190,7 +188,6 @@ const TaskList = () => {
 
       setNewTask({
         title: "",
-        description: "",
         status: "waiting",
         createdAt: new Date(),
         createdBy: currentUser.id,
@@ -368,7 +365,7 @@ const TaskList = () => {
         onUserDropdownToggle={() => setShowUserDropdown(!showUserDropdown)}
         isAdmin={currentUser?.isAdmin || false}
         onDeleteTask={handleDeleteTask}
-        onSave={() => { }} // Placeholder as TaskList doesn't seem to have onSave yet
+        onSave={(title) => { }} // Placeholder as TaskList doesn't seem to have onSave yet
       />
 
       <Modal

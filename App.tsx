@@ -1,8 +1,8 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { StatusBar } from "expo-status-bar";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, ActivityIndicator, Text } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { TaskProvider } from "./src/context/TaskContext";
@@ -21,7 +21,36 @@ const Stack = createStackNavigator();
 
 const App = () => {
   useEffect(() => {
-    setupNotifications();
+    // Global error handler (React Native'de ErrorUtils global olarak mevcuttur)
+    const errorHandler = (error: Error, isFatal?: boolean) => {
+      console.error("Global error:", error, "isFatal:", isFatal);
+      // Fatal hatalar için log tut, ama uygulama çökmesin
+      if (isFatal) {
+        console.error("Fatal error yakalandı");
+      }
+    };
+
+    // React Native error handler
+    try {
+      const ErrorUtils = (global as any).ErrorUtils;
+      if (ErrorUtils && typeof ErrorUtils.getGlobalHandler === 'function') {
+        const originalHandler = ErrorUtils.getGlobalHandler();
+        ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
+          errorHandler(error, isFatal);
+          if (originalHandler) {
+            originalHandler(error, isFatal);
+          }
+        });
+      }
+    } catch (e) {
+      console.error("Error handler setup hatası:", e);
+    }
+
+    // Notification setup hatası uygulamayı durdurmamalı
+    setupNotifications().catch((error) => {
+      console.error("Notification setup hatası:", error);
+      // Hata olsa bile uygulama devam etsin
+    });
   }, []);
 
   return (
@@ -40,17 +69,36 @@ const App = () => {
 
 const RootNavigator = () => {
   const { user, loading } = useAuth();
+  const [navigationError, setNavigationError] = useState<string | null>(null);
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        {/* Simple loading indicator or splash screen */}
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Yükleniyor...</Text>
+      </View>
+    );
+  }
+
+  if (navigationError) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Bir hata oluştu</Text>
+        <Text style={styles.errorSubtext}>{navigationError}</Text>
+        <Text style={styles.errorSubtext}>Lütfen uygulamayı yeniden başlatın</Text>
       </View>
     );
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      onReady={() => {
+        setNavigationError(null);
+      }}
+      onStateChange={() => {
+        setNavigationError(null);
+      }}
+    >
       <Stack.Navigator
         screenOptions={{
           headerStyle: {
@@ -124,5 +172,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#666",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FF3B30",
+    marginBottom: 8,
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginTop: 4,
   },
 });
