@@ -42,7 +42,7 @@ export default function UserDashboard() {
   const { user, signOut } = useAuth();
   const navigation = useNavigation<NavigationProp>();
   // Use Global Task Context
-  const { tasks, loadTasks, addTask, updateTaskStatus, updateTask, deleteTask } = useTasks();
+  const { tasks, loadTasks, addTask, updateTaskStatus, updateTask, deleteTask, getTurkeyDayRange } = useTasks();
 
   const [users, setUsers] = useState<User[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -108,26 +108,14 @@ export default function UserDashboard() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    const range = getTurkeyDayRange();
+    const todayStart = new Date(range.start);
+    const todayEnd = new Date(range.end);
 
     const duties = tasks.filter(task => {
       const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
       const isToday = taskDate >= todayStart && taskDate <= todayEnd;
       const isPastWaiting = task.status === 'waiting' && taskDate < todayStart;
-      const isCompleted = task.status === 'completed';
-
-      // Filter based on "Duties" definition: Today's tasks OR Past waiting tasks.
-      // Also respect completion if needed, but usually we show completed todays tasks.
-
-      // If it's completed, we show it if it was created today. 
-      // If it's completed and from past, we typically hide it from "Current Duties" 
-      // unless we want to show history. Let's stick to the previous query logic:
-      // Previous logic: 
-      // 1. Today's tasks (all statuses except maybe completed if filtered out later)
-      // 2. Past waiting tasks.
 
       if (isToday) return true;
       if (isPastWaiting) return true;
@@ -137,16 +125,13 @@ export default function UserDashboard() {
 
     const sortTasks = (list: Task[]) => {
       return [...list].sort((a, b) => {
-        // Önce tamamlanan durumuna göre sırala (tamamlanan altta)
         if (a.status === "completed" && b.status !== "completed") return 1;
         if (a.status !== "completed" && b.status === "completed") return -1;
 
-        // Tamamlanan olmayan görevler için created date'e göre sırala (eski tarihler üstte)
         const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        if (aTime !== bTime) return aTime - bTime; // Eski oluşturulan üstte
+        if (aTime !== bTime) return aTime - bTime;
 
-        // Son olarak ID'ye göre stabil sıralama
         const aId = a.id || "";
         const bId = b.id || "";
         return aId.localeCompare(bId);
@@ -166,26 +151,12 @@ export default function UserDashboard() {
 
   const getRandomColor = (name: string) => {
     const colors = [
-      "#FF3B30", // Kırmızı
-      "#FF9500", // Turuncu
-      "#FFCC00", // Sarı
-      "#34C759", // Yeşil
-      "#5AC8FA", // Açık Mavi
-      "#007AFF", // Mavi
-      "#5856D6", // Mor
-      "#FF2D55", // Pembe
-      "#8E8E93", // Gri
-      "#4CD964", // Parlak Yeşil
+      "#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#5AC8FA",
+      "#007AFF", "#5856D6", "#FF2D55", "#8E8E93", "#4CD964",
     ];
-
-    const sum = name
-      .split("")
-      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const index = sum % colors.length;
-    return colors[index];
+    const sum = name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[sum % colors.length];
   };
-
-
 
   const handleCreateTask = async () => {
     if (!newTask.title) {
@@ -396,11 +367,10 @@ export default function UserDashboard() {
           // Önce task'in bugün mü yoksa önceki günden mi kaldığını kontrol et
           const isFromPreviousDay = () => {
             if (!item.createdAt) return false;
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            const range = getTurkeyDayRange();
+            const todayStart = new Date(range.start);
             const taskDate = new Date(item.createdAt);
-            taskDate.setHours(0, 0, 0, 0);
-            return taskDate < today;
+            return taskDate < todayStart;
           };
 
           // Border rengi belirle

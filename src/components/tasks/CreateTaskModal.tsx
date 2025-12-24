@@ -28,13 +28,14 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   onCreateTask,
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
-  
+
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString("tr-TR", {
+    return new Intl.DateTimeFormat("tr-TR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
-    });
+      timeZone: "Europe/Istanbul",
+    }).format(date);
   };
 
   const handleDateChange = (event: any, selectedDate?: Date) => {

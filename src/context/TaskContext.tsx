@@ -12,6 +12,7 @@ interface TaskContextType {
     updateTaskStatus: (taskId: string, status: Task["status"]) => Promise<void>;
     updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
     deleteTask: (taskId: string) => Promise<void>;
+    getTurkeyDayRange: () => { start: string; end: string };
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -46,11 +47,19 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
 
             if (error) throw error;
 
-            const tasksList = data?.map((task) => ({
-                ...task,
-                createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
-                createdBy: (task as any).createdby || (task as any).createdBy || "",
-            })) || [];
+            const turkeyOffset = 3 * 60 * 60 * 1000;
+            const tasksList = data?.map((task) => {
+                const rawDate = task.createdAt ? new Date(task.createdAt) : new Date();
+                // If we store TR time as UTC (Z), we must shift it BACK to true UTC
+                // so the app's standard date logic treats it correctly.
+                const trueUTCDate = new Date(rawDate.getTime() - turkeyOffset);
+
+                return {
+                    ...task,
+                    createdAt: trueUTCDate,
+                    createdBy: (task as any).createdby || (task as any).createdBy || "",
+                };
+            }) || [];
 
             tasksList.sort((a, b) => {
                 const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -67,41 +76,53 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [user]);
 
     const toTurkeyISOString = (date: Date) => {
-        const turkeyOffset = 3 * 60; // UTC+3 in minutes
+        const turkeyOffset = 3 * 60 * 60 * 1000;
+        // Shift to TR time numbers but claim it's UTC ('Z')
+        // This makes it show the TR numbers in the Supabase Dashboard
+        const trTime = new Date(date.getTime() + turkeyOffset);
 
         const pad = (num: number) => num.toString().padStart(2, '0');
         const pad3 = (num: number) => num.toString().padStart(3, '0');
 
-        // 1. Get the absolute UTC time in milliseconds
-        const utcMillis = date.getTime();
+        const yyyy = trTime.getUTCFullYear();
+        const MM = pad(trTime.getUTCMonth() + 1);
+        const dd = pad(trTime.getUTCDate());
+        const HH = pad(trTime.getUTCHours());
+        const mm = pad(trTime.getUTCMinutes());
+        const ss = pad(trTime.getUTCSeconds());
+        const sss = pad3(trTime.getUTCMilliseconds());
 
-        // 2. Add Turkey's offset (3 hours) to get "Turkey Time" as if it were UTC
-        const turkeyTimeMillis = utcMillis + (turkeyOffset * 60 * 1000);
-
-        // 3. Create a new Date object representing this shifted time
-        const turkeyDate = new Date(turkeyTimeMillis);
-
-        // 4. Extract UTC components from this shifted date
-        const yyyy = turkeyDate.getUTCFullYear();
-        const MM = pad(turkeyDate.getUTCMonth() + 1);
-        const dd = pad(turkeyDate.getUTCDate());
-        const HH = pad(turkeyDate.getUTCHours());
-        const mm = pad(turkeyDate.getUTCMinutes());
-        const ss = pad(turkeyDate.getUTCSeconds());
-        const sss = pad3(turkeyDate.getUTCMilliseconds());
-
-        // 5. Construct the ISO string with the explicit Z offset to treat as UTC
         return `${yyyy}-${MM}-${dd}T${HH}:${mm}:${ss}.${sss}Z`;
+    };
+
+    const getTurkeyDayRange = () => {
+        const turkeyOffset = 3 * 60 * 60 * 1000;
+        const now = new Date();
+        const trNow = new Date(now.getTime() + turkeyOffset);
+
+        const pad = (num: number) => num.toString().padStart(2, '0');
+
+        const yyyy = trNow.getUTCFullYear();
+        const MM = pad(trNow.getUTCMonth() + 1);
+        const dd = pad(trNow.getUTCDate());
+
+        return {
+            start: `${yyyy}-${MM}-${dd}T00:00:00.000Z`,
+            end: `${yyyy}-${MM}-${dd}T23:59:59.999Z`
+        };
     };
 
     const addTask = React.useCallback(async (newTask: Omit<Task, "id" | "createdAt">) => {
         if (!user?.id) return;
 
+        const dateObj = (newTask as any).createdAt || new Date();
+        const selectedDate = dateObj instanceof Date ? dateObj : new Date(dateObj);
+
         const tempId = Math.random().toString();
         const optimisticTask: Task = {
             ...newTask,
             id: tempId,
-            createdAt: new Date(),
+            createdAt: selectedDate,
             status: 'waiting',
             createdBy: user.id
         };
@@ -109,9 +130,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         setTasks(prev => [...prev, optimisticTask]);
 
         try {
-            const dateObj = (newTask as any).createdAt || new Date();
-            const selectedDate = dateObj instanceof Date ? dateObj : new Date(dateObj);
-
             const turkeyDateString = toTurkeyISOString(selectedDate);
 
             const { data, error } = await supabase
@@ -129,9 +147,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
 
             if (error) throw error;
 
+            const rawDate = data.createdAt ? new Date(data.createdAt) : new Date();
+            const turkeyOffset = 3 * 60 * 60 * 1000;
+            const trueUTCDate = new Date(rawDate.getTime() - turkeyOffset);
+
             const createdTask = {
                 ...data,
-                createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+                createdAt: trueUTCDate,
                 createdBy: data.createdby || data.createdBy || ""
             };
 
@@ -192,7 +214,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [loadTasks]);
 
     const value = React.useMemo(() => ({
-        tasks, loading, loadTasks, addTask, updateTaskStatus, updateTask, deleteTask
+        tasks, loading, loadTasks, addTask, updateTaskStatus, updateTask, deleteTask, getTurkeyDayRange
     }), [tasks, loading, loadTasks, addTask, updateTaskStatus, updateTask, deleteTask]);
 
     return (
