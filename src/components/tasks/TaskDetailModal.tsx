@@ -11,7 +11,6 @@ interface TaskDetailModalProps {
     status: "waiting" | "completed"
   ) => void;
   onDeleteTask: () => void;
-  isAdmin: boolean;
   onSave: (title: string) => void;
 }
 
@@ -20,7 +19,6 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   onClose,
   selectedTask,
   onDeleteTask,
-  isAdmin,
   onSave,
 }) => {
   if (!selectedTask) return null;
@@ -95,7 +93,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
 
                   onPress={() => {
-                 
+
                     try {
                       onDeleteTask();
                     } catch (e) {

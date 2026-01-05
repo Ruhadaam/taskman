@@ -1,7 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { supabase, TABLES } from "../config/lib";
 import { User } from "../types";
-import { registerForPushNotificationsAsync } from "../services/notificationService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface AuthContextType {
@@ -11,6 +10,8 @@ interface AuthContextType {
   signUp: (email: string, password: string) => Promise<User | null>;
   signOut: () => Promise<void>;
   setUser: (user: User | null) => void;
+  resetPasswordRequest: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,8 +41,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Mevcut oturumu kontrol et
     const checkSession = async () => {
       try {
+        const Linking = require('expo-linking');
+        const initialUrl = await Linking.getInitialURL();
+
         const { data: { session }, error } = await supabase.auth.getSession();
-        
+
         if (error) {
           console.error("Session kontrol hatası:", error);
           if (isMounted) {
@@ -54,7 +58,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (session?.user && isMounted) {
           await transformSupabaseUser(session.user);
         }
-        
+
         if (isMounted) {
           setLoading(false);
           sessionChecked = true;
@@ -73,19 +77,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Auth state değişikliklerini dinle
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // İlk yükleme sırasında getSession zaten çalıştıysa, sadece değişiklikleri dinle
-      if (!sessionChecked) return;
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("AuthContext - onAuthStateChange Event:", event, "User:", session?.user?.id);
 
-      try {
-        if (session?.user && isMounted) {
-          await transformSupabaseUser(session.user);
-        } else if (isMounted) {
-          setUser(null);
-          await AsyncStorage.removeItem("user");
-        }
-      } catch (error) {
-        console.error("Auth state change hatası:", error);
+      if (!isMounted) return;
+
+      // Sadece sessionChecked true olduktan sonra otomatik transform yap
+      if (sessionChecked && session?.user) {
+        console.log("AuthContext - transformSupabaseUser tetikleniyor (detached)...");
+        // Deadlock'ı önlemek için tamamen ayırıyoruz
+        setTimeout(() => {
+          if (isMounted) {
+            transformSupabaseUser(session.user).catch(err => {
+              console.error("AuthContext - Background transform error:", err);
+            });
+          }
+        }, 0);
+      } else if (sessionChecked && !session && isMounted) {
+        console.log("AuthContext - Oturum kapandı.");
+        setUser(null);
+        AsyncStorage.removeItem("user").catch(() => { });
       }
     });
 
@@ -108,6 +119,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const transformSupabaseUser = async (
     supabaseUser: any
   ): Promise<User | null> => {
+    console.log("transformSupabaseUser - Başladı, id:", supabaseUser?.id);
     try {
       if (!supabaseUser?.id) {
         console.error("Geçersiz kullanıcı bilgisi");
@@ -116,6 +128,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return null;
       }
 
+      console.log("transformSupabaseUser - DB sorgusu atılıyor...");
       const { data, error } = await supabase
         .from(TABLES.PROFILES)
         .select("*")
@@ -123,39 +136,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .single();
 
       if (error) {
-        console.error("Profil getirme hatası:", error);
-        setUser(null);
-        await AsyncStorage.removeItem("user");
+        console.log("transformSupabaseUser - DB hatası alındı:", error.message);
+
+        // PGRST116: no rows found
+        if (error.code === 'PGRST116' || error.message?.includes('single JSON object')) {
+          console.log("transformSupabaseUser - Profil bulunamadı, geçici obje kuruluyor.");
+          const tempUser = { id: supabaseUser.id, email: supabaseUser.email || "" } as any;
+          setUser(tempUser);
+          return tempUser;
+        }
+
+        console.error("transformSupabaseUser - Profil getirme kritik hatası:", error.message);
         return null;
       }
 
       if (data) {
-        const normalizedUser = {
-          ...data,
-          // Uygulamada beklenen alanlar yoksa varsayılanlara düş
-          isAdmin: (data as any).isAdmin ?? false,
-          unseen: (data as any).unseen ?? [],
-          seen: (data as any).seen ?? [],
-        };
+        console.log("transformSupabaseUser - Profil başarıyla getirildi.");
+        const normalizedUser = { ...data };
         setUser(normalizedUser);
         try {
           await AsyncStorage.setItem("user", JSON.stringify(normalizedUser));
         } catch (storageError) {
           console.error("AsyncStorage kayıt hatası:", storageError);
-          // Storage hatası kritik değil, devam et
         }
         return normalizedUser as User;
       }
-      
+
       return null;
     } catch (error) {
-      console.error("Kullanıcı dönüştürme hatası:", error);
-      setUser(null);
-      try {
-        await AsyncStorage.removeItem("user");
-      } catch (storageError) {
-        console.error("AsyncStorage silme hatası:", storageError);
-      }
+      console.error("transformSupabaseUser - Genel hata:", error);
       return null;
     }
   };
@@ -175,11 +184,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const transformedUser = await transformSupabaseUser(data.user);
       setUser(transformedUser);
-
-      // Push bildirim token'ını kaydet
-      if (transformedUser) {
-        await registerForPushNotificationsAsync(transformedUser.id);
-      }
 
       return transformedUser;
     } catch (error) {
@@ -232,9 +236,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (profile) {
         setUser(profile);
         await AsyncStorage.setItem("user", JSON.stringify(profile));
-
-        // Register for notifications
-        await registerForPushNotificationsAsync(profile.id);
       }
 
       return profile;
@@ -244,8 +245,69 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const resetPasswordRequest = async (email: string): Promise<void> => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'vzbel://forget-password',
+      });
+      if (error) throw error;
+    } catch (error) {
+      console.error("Şifre sıfırlama hatası:", error);
+      throw error;
+    }
+  };
+
+  const updatePassword = async (newPassword: string): Promise<void> => {
+    console.log("updatePassword - Başladı");
+
+    try {
+      // Session bekleme döngüsü (Eğer setSession henüz bitmediyse)
+      let session = null;
+      for (let i = 0; i < 5; i++) {
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          session = data.session;
+          break;
+        }
+        console.log(`updatePassword - Session bekleniyor... (${i + 1}/5)`);
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      if (!session) {
+        console.error("updatePassword - Hata: Oturum bulunamadı!");
+        throw new Error("Oturum bulunamadı. Lütfen tekrar linke tıklayın.");
+      }
+
+      console.log("updatePassword - Supabase updateUser çağrılıyor...");
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) {
+        console.error("updatePassword - Supabase hatası:", error.message);
+        throw error;
+      }
+
+      console.log("updatePassword - Başarıyla tamamlandı", data.user?.id);
+    } catch (error: any) {
+      console.error("updatePassword - Yakalanan Hata:", error.message || error);
+      throw error;
+    }
+  };
+
+  const value = {
+    user,
+    loading,
+    signIn,
+    signUp,
+    signOut,
+    setUser,
+    resetPasswordRequest,
+    updatePassword,
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, setUser }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

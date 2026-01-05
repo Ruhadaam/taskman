@@ -3,11 +3,27 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import UserDashboard from "../screens/UserDashboard";
 import UpcomingTasksScreen from "../screens/UpcomingTasksScreen";
+import OverdueTasksScreen from "../screens/OverdueTasksScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import { useTasks } from "../context/TaskContext";
 
 const Tab = createBottomTabNavigator();
 
 export default function UserTabNavigator() {
+    const { tasks, getTurkeyDayRange } = useTasks();
+
+    const getOverdueCount = () => {
+        const range = getTurkeyDayRange();
+        const todayStart = new Date(range.start);
+
+        return tasks.filter(task => {
+            const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
+            return task.status === 'waiting' && taskDate < todayStart;
+        }).length;
+    };
+
+    const overdueCount = getOverdueCount();
+
     return (
         <Tab.Navigator
             screenOptions={{
@@ -38,6 +54,17 @@ export default function UserTabNavigator() {
                     tabBarIcon: ({ color, size }) => (
                         <Icon name="event" size={size} color={color} />
                     ),
+                }}
+            />
+            <Tab.Screen
+                name="Overdue"
+                component={OverdueTasksScreen}
+                options={{
+                    tabBarLabel: "Kalanlar",
+                    tabBarIcon: ({ color, size }) => (
+                        <Icon name="history" size={size} color={color} />
+                    ),
+                    tabBarBadge: overdueCount > 0 ? overdueCount : undefined,
                 }}
             />
             <Tab.Screen

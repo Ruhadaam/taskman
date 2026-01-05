@@ -1,58 +1,31 @@
 import React, { useEffect, useState } from "react";
-import { NavigationContainer } from "@react-navigation/native";
-import { createStackNavigator } from "@react-navigation/stack";
+import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
-import { StyleSheet, View, ActivityIndicator, Text } from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { StyleSheet, View, ActivityIndicator, Text, AppState } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { TaskProvider } from "./src/context/TaskContext";
-import { setupNotifications } from "./src/services/notificationService";
+import { supabase } from "./src/config/lib";
+import * as Linking from 'expo-linking';
+
+// Ekranlar
 import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
-import AdminDashboard from "./src/screens/AdminDashboard";
-import UserDashboard from "./src/screens/UserDashboard";
-import UserList from "./src/screens/UserList";
-import TaskList from "./src/screens/TaskList";
-import UserTaskList from "./src/screens/UserTaskList";
-import NotificationsScreen from "./src/screens/NotificationsScreen";
+import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
 import UserTabNavigator from "./src/navigation/UserTabNavigator";
 
-const Stack = createStackNavigator();
+type RootStackParamList = {
+  LoginScreen: undefined;
+  RegisterScreen: undefined;
+  ResetPasswordScreen: undefined;
+  UserTabNavigator: undefined;
+  UserDashboard: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const App = () => {
-  useEffect(() => {
-    // Global error handler (React Native'de ErrorUtils global olarak mevcuttur)
-    const errorHandler = (error: Error, isFatal?: boolean) => {
-      console.error("Global error:", error, "isFatal:", isFatal);
-      // Fatal hatalar için log tut, ama uygulama çökmesin
-      if (isFatal) {
-        console.error("Fatal error yakalandı");
-      }
-    };
-
-    // React Native error handler
-    try {
-      const ErrorUtils = (global as any).ErrorUtils;
-      if (ErrorUtils && typeof ErrorUtils.getGlobalHandler === 'function') {
-        const originalHandler = ErrorUtils.getGlobalHandler();
-        ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
-          errorHandler(error, isFatal);
-          if (originalHandler) {
-            originalHandler(error, isFatal);
-          }
-        });
-      }
-    } catch (e) {
-      console.error("Error handler setup hatası:", e);
-    }
-
-    // Notification setup hatası uygulamayı durdurmamalı
-    setupNotifications().catch((error) => {
-      console.error("Notification setup hatası:", error);
-      // Hata olsa bile uygulama devam etsin
-    });
-  }, []);
-
   return (
     <SafeAreaProvider>
       <View style={styles.container}>
@@ -68,139 +41,134 @@ const App = () => {
 };
 
 const RootNavigator = () => {
-  const { user, loading } = useAuth();
-  const [navigationError, setNavigationError] = useState<string | null>(null);
+  const { user, loading, signOut } = useAuth();
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+
+  // Deep link üzerinden gelen PASSWORD_RECOVERY event'ini dinle
+  useEffect(() => {
+    const handleDeepLink = async (url: string | null) => {
+      console.log("handleDeepLink - Başladı:", url);
+      if (!url) return;
+
+      const isRecoveryFlow = url.includes('forget-password') || url.includes('reset-password');
+
+      if (isRecoveryFlow) {
+        console.log("handleDeepLink - Recovery akışı tespit edildi.");
+        setIsPasswordRecovery(true); // Hemen set et ki user dashboard'a gitmesin
+
+        // Token parse etme işlemleri
+        const urlObj = Linking.parse(url);
+        const params = urlObj.queryParams || {};
+
+        let accessToken = params.access_token as string;
+        let refreshToken = params.refresh_token as string;
+
+        if (url.includes('#')) {
+          const hash = url.split('#')[1];
+          const hashParams = Object.fromEntries(new URLSearchParams(hash));
+          accessToken = accessToken || hashParams.access_token;
+          refreshToken = refreshToken || hashParams.refresh_token;
+        }
+
+        if (accessToken) {
+          console.log("handleDeepLink - Token bulundu, session kuruluyor...");
+          try {
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || accessToken,
+            });
+
+            if (error) {
+              console.error("handleDeepLink - Session hatası:", error.message);
+            } else {
+              console.log("handleDeepLink - Session başarıyla kuruldu, kullanıcı:", data.user?.id);
+            }
+          } catch (e) {
+            console.error("handleDeepLink - Kritik hata:", e);
+          }
+        } else {
+          console.warn("handleDeepLink - Token bulunamadı.");
+        }
+      }
+    };
+
+    // Uygulama açıkken gelen deep link'leri dinle
+    const subscription = Linking.addEventListener('url', (event) => {
+      handleDeepLink(event.url);
+    });
+
+    // Uygulama kapalıyken gelen deep link'i kontrol et
+    Linking.getInitialURL().then(handleDeepLink);
+
+    // Supabase auth state değişikliklerini dinle
+    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log("onAuthStateChange (App) - Event:", event, "User:", session?.user?.id);
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsPasswordRecovery(true);
+        }
+        if (event === 'SIGNED_OUT') {
+          setIsPasswordRecovery(false);
+        }
+      }
+    );
+
+    return () => {
+      subscription.remove();
+      authSubscription.unsubscribe();
+    };
+  }, []);
+
+  const linking = {
+    prefixes: ['vzbel://'],
+    config: {
+      screens: {
+        LoginScreen: 'login',
+        ResetPasswordScreen: 'forget-password',
+      },
+    },
+  };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
-      </View>
-    );
-  }
-
-  if (navigationError) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Bir hata oluştu</Text>
-        <Text style={styles.errorSubtext}>{navigationError}</Text>
-        <Text style={styles.errorSubtext}>Lütfen uygulamayı yeniden başlatın</Text>
       </View>
     );
   }
 
   return (
-    <NavigationContainer
-      onReady={() => {
-        setNavigationError(null);
-      }}
-      onStateChange={() => {
-        setNavigationError(null);
-      }}
-    >
-      <Stack.Navigator
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: "#fff",
-          },
-          headerTintColor: "#000",
-          headerTitleStyle: {
-            fontWeight: "bold",
-          },
-          headerShown: false,
-        }}
-      >
-        {!user ? (
-          <>
-            <Stack.Screen
-              name="LoginScreen"
-              component={LoginScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="RegisterScreen"
-              component={RegisterScreen}
-              options={{ headerShown: false }}
-            />
-          </>
-        ) : (
-          <>
-            {user.isAdmin ? (
-              <Stack.Screen
-                name="AdminDashboard"
-                component={AdminDashboard}
-                options={{ title: "Admin Paneli" }}
-              />
-            ) : (
-              <Stack.Screen
-                name="UserDashboard"
-                component={UserTabNavigator}
-                options={{ title: "Kullanıcı Paneli" }}
+    <NavigationContainer ref={navigationRef} linking={linking}>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {isPasswordRecovery ? (
+          <Stack.Screen name="ResetPasswordScreen">
+            {(props: any) => (
+              <ResetPasswordScreen
+                {...props}
+                onComplete={() => setIsPasswordRecovery(false)}
               />
             )}
-            <Stack.Screen
-              name="UserList"
-              component={UserList}
-              options={{ title: "Kullanıcı Listesi" }}
-            />
-            <Stack.Screen
-              name="TaskList"
-              component={TaskList}
-              options={{ title: "Görev Listesi" }}
-            />
-            <Stack.Screen
-              name="UserTaskList"
-              component={UserTaskList}
-              options={{ title: "Kullanıcı Görev Listesi" }}
-            />
-            <Stack.Screen
-              name="Notifications"
-              component={NotificationsScreen}
-              options={{ title: "Bildirimler" }}
-            />
-          </>
+          </Stack.Screen>
+        ) : !user ? (
+          <Stack.Group>
+            <Stack.Screen name="LoginScreen" component={LoginScreen} />
+            <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
+            <Stack.Screen name="ResetPasswordScreen" component={ResetPasswordScreen} />
+          </Stack.Group>
+        ) : (
+          <Stack.Group>
+            <Stack.Screen name="UserDashboard" component={UserTabNavigator} />
+          </Stack.Group>
         )}
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
 
-export default App;
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#fff",
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#666",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FF3B30",
-    marginBottom: 8,
-  },
-  errorSubtext: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    marginTop: 4,
-  },
+  container: { flex: 1, backgroundColor: "#fff" },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
 });
+
+export default App;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -21,33 +21,28 @@ if (
 }
 import { useAuth } from "../context/AuthContext";
 import { useTasks } from "../context/TaskContext"; // Import useTasks
-import { supabase, TABLES } from "../config/lib";
-import { Task, User } from "../types";
+import { Task } from "../types";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
 import CreateTaskModal from "../components/tasks/CreateTaskModal";
-import { sendAdminNotification } from "../services/notificationService";
+import TaskItem from "../components/tasks/TaskItem";
 
 type RootStackParamList = {
-  UserTaskList: undefined;
-  Notifications: undefined;
   LoginScreen: undefined;
 };
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function UserDashboard() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const navigation = useNavigation<NavigationProp>();
   // Use Global Task Context
-  const { tasks, loadTasks, addTask, updateTaskStatus, updateTask, deleteTask, getTurkeyDayRange } = useTasks();
+  const { tasks, addTask, updateTaskStatus, updateTask, deleteTask, getTurkeyDayRange } = useTasks();
 
-  const [users, setUsers] = useState<User[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
-  // User dropdown functionality removed for non-admin users
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newTask, setNewTask] = useState<Task>({
     title: "",
@@ -55,58 +50,11 @@ export default function UserDashboard() {
     createdAt: new Date(),
     createdBy: user?.id || "",
   });
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-  const [adminModalVisible, setAdminModalVisible] = useState(false);
-  const [notificationTitle, setNotificationTitle] = useState("");
-  const [notificationMessage, setNotificationMessage] = useState("");
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [hideCompleted, setHideCompleted] = useState(false);
-  const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
   const [completingTaskIds, setCompletingTaskIds] = useState<Set<string>>(new Set());
 
-  useFocusEffect(
-    React.useCallback(() => {
-      // We rely on context state, but we can trigger a refresh if needed.
-      // Context loads initial tasks on mount.
-      loadTasks();
-      loadUsers();
-    }, [])
-  );
-
-  useEffect(() => {
-    if (user?.unseen) {
-      setUnreadNotifications(user.unseen.length);
-    }
-  }, [user]);
-
-  const loadUsers = async () => {
-    try {
-      const { data: profiles, error } = await supabase
-        .from(TABLES.PROFILES)
-        .select("*");
-
-      if (error) throw error;
-
-      const usersList =
-        profiles?.map((profile) => ({
-          id: profile.id,
-          name: profile.name || "",
-          email: profile.email || "",
-          uid: profile.uid || "",
-          isAdmin: profile.isAdmin || false,
-          unseen: profile.unseen || [],
-          seen: profile.seen || [],
-        })) || [];
-
-      setUsers(usersList);
-    } catch (error) {
-      console.error("Kullanıcılar yüklenirken hata:", error);
-    }
-  };
-
-  // Filter tasks for "Duties" view from global tasks
-  useEffect(() => {
-    if (!user?.id) return;
+  // Memoize filtered tasks
+  const filteredTasks = useMemo(() => {
+    if (!user?.id) return [];
 
     const range = getTurkeyDayRange();
     const todayStart = new Date(range.start);
@@ -115,48 +63,22 @@ export default function UserDashboard() {
     const duties = tasks.filter(task => {
       const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
       const isToday = taskDate >= todayStart && taskDate <= todayEnd;
-      const isPastWaiting = task.status === 'waiting' && taskDate < todayStart;
-
-      if (isToday) return true;
-      if (isPastWaiting) return true;
-
-      return false;
+      return isToday;
     });
 
-    const sortTasks = (list: Task[]) => {
-      return [...list].sort((a, b) => {
-        if (a.status === "completed" && b.status !== "completed") return 1;
-        if (a.status !== "completed" && b.status === "completed") return -1;
+    return duties.sort((a, b) => {
+      if (a.status === "completed" && b.status !== "completed") return 1;
+      if (a.status !== "completed" && b.status === "completed") return -1;
 
-        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        if (aTime !== bTime) return aTime - bTime;
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (aTime !== bTime) return aTime - bTime;
 
-        const aId = a.id || "";
-        const bId = b.id || "";
-        return aId.localeCompare(bId);
-      });
-    };
-
-    setFilteredTasks(sortTasks(duties.filter((task) => task.status !== "completed")));
-  }, [tasks, hideCompleted, user?.id]);
-
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase();
-  };
-
-  const getRandomColor = (name: string) => {
-    const colors = [
-      "#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#5AC8FA",
-      "#007AFF", "#5856D6", "#FF2D55", "#8E8E93", "#4CD964",
-    ];
-    const sum = name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[sum % colors.length];
-  };
+      const aId = a.id || "";
+      const bId = b.id || "";
+      return aId.localeCompare(bId);
+    });
+  }, [tasks, user?.id]);
 
   const handleCreateTask = async () => {
     if (!newTask.title) {
@@ -199,7 +121,6 @@ export default function UserDashboard() {
     try {
       await updateTaskStatus(selectedTask.id, newStatus);
       setSelectedTask({ ...selectedTask, status: newStatus });
-      setShowStatusDropdown(false);
     } catch (error) {
       console.error("Durum güncellenirken hata:", error);
       Alert.alert("Hata", "Durum güncellenirken bir hata oluştu");
@@ -209,9 +130,7 @@ export default function UserDashboard() {
   const toggleTaskDone = (task: Task) => {
     if (!task.id) return;
 
-    // Optimistic toggle logic stays similar but calls context method
-
-    // 1. If currently pending completion (user clicked check), cancel it.
+    // Optimistic toggle logic
     if (completingTaskIds.has(task.id)) {
       setCompletingTaskIds((prev) => {
         const next = new Set(prev);
@@ -221,21 +140,17 @@ export default function UserDashboard() {
       return; // Abort
     }
 
-    // 2. If already completed, Undo immediately.
     if (task.status === "completed") {
       updateContextTaskStatus(task, "waiting");
       return;
     }
 
-    // 3. New completion action: Add to pending and wait.
     setCompletingTaskIds((prev) => new Set(prev).add(task.id!));
 
     setTimeout(() => {
       setCompletingTaskIds((currentSet) => {
         if (currentSet.has(task.id!)) {
-          // Perform the actual update via context
           updateContextTaskStatus(task, "completed");
-
           const next = new Set(currentSet);
           next.delete(task.id!);
           return next;
@@ -254,7 +169,6 @@ export default function UserDashboard() {
       setSelectedTask({ ...selectedTask, status: newStatus });
     }
 
-    // Use context method
     if (task.id) {
       await updateTaskStatus(task.id, newStatus);
     }
@@ -282,154 +196,47 @@ export default function UserDashboard() {
     }
   };
 
-  const renderStatusDropdown = () => {
-    if (!showStatusDropdown) return null;
-
-    const statuses = [
-      { value: "waiting", color: "#FFCC00" },
-      { value: "completed", color: "#34C759" },
-      { value: "past_due", color: "#FF3B30" },
-    ];
-
-    return (
-      <View style={styles.statusDropdown}>
-        {statuses.map((status) => (
-          <TouchableOpacity
-            key={status.value}
-            style={[
-              styles.statusDropdownItem,
-              { backgroundColor: status.color },
-            ]}
-            onPress={() =>
-              handleStatusChange(
-                status.value as
-                | "waiting"
-                | "completed"
-                | "past_due"
-              )
-            }
-          >
-            <Text style={styles.statusText}>{status.value}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
+  const getBorderColor = (status: Task["status"]) => {
+    switch (status) {
+      case "completed":
+        return "#34C759"; // Yeşil
+      case "waiting":
+        return "#FFCC00"; // Sarı
+      case "past_due":
+        return "#FF3B30"; // Kırmızı
+      default:
+        return "#FFCC00"; // Varsayılan sarı
+    }
   };
 
-  const handleSendNotification = async () => {
-    if (!notificationTitle || !notificationMessage) {
-      Alert.alert("Hata", "Başlık ve mesaj alanları boş olamaz");
-      return;
-    }
-
-    try {
-      await sendAdminNotification(notificationTitle, notificationMessage);
-      setAdminModalVisible(false);
-      setNotificationTitle("");
-      setNotificationMessage("");
-      Alert.alert("Başarılı", "Bildirim gönderildi");
-    } catch (error) {
-      console.error("Bildirim gönderme hatası:", error);
-      Alert.alert("Hata", "Bildirim gönderilemedi");
-    }
+  const handleTaskPress = (task: Task) => {
+    setSelectedTask(task);
+    setDetailModalVisible(true);
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          {/* Tarih kaldırıldı */}
-
           <View style={styles.welcomeContainer}>
-
             <Text style={styles.userName}>Bugün</Text>
-
           </View>
-
-
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.notificationButton}
-            onPress={() => navigation.navigate("Notifications")}
-          >
-
-          </TouchableOpacity>
-
         </View>
       </View>
 
-
-
       <FlatList
         data={filteredTasks}
-        renderItem={({ item }) => {
-          // Önce task'in bugün mü yoksa önceki günden mi kaldığını kontrol et
-          const isFromPreviousDay = () => {
-            if (!item.createdAt) return false;
-            const range = getTurkeyDayRange();
-            const todayStart = new Date(range.start);
-            const taskDate = new Date(item.createdAt);
-            return taskDate < todayStart;
-          };
-
-          // Border rengi belirle
-          const getBorderColor = () => {
-            // Önceki günden kalan taskler her zaman kırmızı
-            if (isFromPreviousDay()) {
-              return "#FF3B30"; // Kırmızı
-            }
-
-            // Bugün eklenen taskler için status'e göre renk
-            switch (item.status) {
-              case "completed":
-                return "#34C759"; // Yeşil
-              case "waiting":
-                return "#FFCC00"; // Sarı
-              case "past_due":
-                return "#FF3B30"; // Kırmızı
-              default:
-                return "#FFCC00"; // Varsayılan sarı
-            }
-          };
-
-          return (
-            <View style={[
-              styles.todoItem,
-              { borderLeftColor: getBorderColor() }
-            ]}>
-              <TouchableOpacity
-                style={[
-                  styles.checkbox,
-                  (item.status === "completed" || (item.id && completingTaskIds.has(item.id))) && styles.checkboxChecked
-                ]}
-                onPress={() => toggleTaskDone(item)}
-              >
-                {(item.status === "completed" || (item.id && completingTaskIds.has(item.id))) && (
-                  <Icon name="check" size={16} color="#fff" />
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.todoContent}
-                onPress={() => {
-                  setSelectedTask(item);
-                  setDetailModalVisible(true);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.todoTitle,
-                    (item.status === "completed" || (item.id && completingTaskIds.has(item.id))) && styles.todoTitleCompleted,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {item.title}
-                </Text>
-
-              </TouchableOpacity>
-            </View>
-          );
-        }}
+        renderItem={({ item }) => (
+          <TaskItem
+            item={item}
+            onToggle={toggleTaskDone}
+            onPress={handleTaskPress}
+            isCompleting={item.id ? completingTaskIds.has(item.id) : false}
+            borderLeftColor={getBorderColor(item.status)}
+          />
+        )}
         keyExtractor={(item) => item.id || ""}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
@@ -459,55 +266,8 @@ export default function UserDashboard() {
         selectedTask={selectedTask}
         onStatusChange={handleStatusChange}
         onDeleteTask={handleDeleteTask}
-        isAdmin={user?.isAdmin || false}
         onSave={handleSaveTask}
       />
-
-      {/* Admin bildirim modalı */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={adminModalVisible}
-        onRequestClose={() => setAdminModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Bildirim Gönder</Text>
-
-            <TextInput
-              style={styles.input}
-              placeholder="Başlık"
-              value={notificationTitle}
-              onChangeText={setNotificationTitle}
-            />
-
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Mesaj"
-              value={notificationMessage}
-              onChangeText={setNotificationMessage}
-              multiline
-              numberOfLines={4}
-            />
-
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={[styles.button, styles.cancelButton]}
-                onPress={() => setAdminModalVisible(false)}
-              >
-                <Text style={styles.buttonText}>İptal</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.button, styles.confirmButton]}
-                onPress={handleSendNotification}
-              >
-                <Text style={styles.buttonText}>Gönder</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

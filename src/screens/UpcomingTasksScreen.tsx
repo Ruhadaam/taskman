@@ -24,7 +24,6 @@ if (
 
 type RootStackParamList = {
     UserTaskList: undefined;
-    Notifications: undefined;
     LoginScreen: undefined;
 };
 
@@ -33,15 +32,9 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function UpcomingTasksScreen() {
     const { user } = useAuth();
     const navigation = useNavigation<NavigationProp>();
-    const { tasks, loadTasks } = useTasks();
+    const { tasks } = useTasks();
 
     const [items, setItems] = useState<AgendaSchedule>({});
-
-    useFocusEffect(
-        React.useCallback(() => {
-            loadTasks();
-        }, [])
-    );
 
     useEffect(() => {
         const newItems: AgendaSchedule = {};
@@ -127,7 +120,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: "#fff",
-        
+
     },
     item: {
         backgroundColor: "white",
