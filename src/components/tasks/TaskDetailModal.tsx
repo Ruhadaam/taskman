@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Modal, StyleSheet, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, Modal, StyleSheet, TextInput, Platform } from "react-native";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { Task } from "../../types";
 
 interface TaskDetailModalProps {
@@ -11,7 +12,7 @@ interface TaskDetailModalProps {
     status: "waiting" | "completed"
   ) => void;
   onDeleteTask: () => void;
-  onSave: (title: string) => void;
+  onSave: (title: string, date: Date) => void;
 }
 
 const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
@@ -24,10 +25,13 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   if (!selectedTask) return null;
 
   const [editTitle, setEditTitle] = useState(selectedTask.title);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     if (selectedTask) {
       setEditTitle(selectedTask.title);
+      setSelectedDate(selectedTask.createdAt ? new Date(selectedTask.createdAt) : new Date());
     }
   }, [selectedTask]);
 
@@ -42,14 +46,21 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "Tamamlanmış";
-      case "past_due":
-        return "Dünden Kalan";
-      default:
-        return "Beklemede";
+  const formatDate = (date: Date) => {
+    return new Intl.DateTimeFormat("tr-TR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: "Europe/Istanbul",
+    }).format(date);
+  };
+
+  const handleDateChange = (event: any, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (date) {
+      setSelectedDate(date);
     }
   };
 
@@ -61,67 +72,85 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalContainer}>
-        <View
-          style={[
-            styles.modalContent,
-            {
-              borderColor: getStatusColor(selectedTask.status),
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.modalHeader,
-              {
-                borderBottomColor: getStatusColor(selectedTask.status),
-              },
-            ]}
-          >
-            <View style={styles.headerLeft}>
-              <TextInput
-                style={styles.titleInput}
-                value={editTitle}
-                onChangeText={setEditTitle}
-                placeholder="Başlık"
-              />
-            </View>
-            <View style={styles.headerRight}>
-
-              <View style={styles.headerIcons}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.deleteIcon]}
-
-
-                  onPress={() => {
-
-                    try {
-                      onDeleteTask();
-                    } catch (e) {
-                      console.error("Error calling onDeleteTask:", e);
-                    }
-                  }}
-                >
-                  <Icon name="delete" size={20} color="#FF3B30" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.closeButton]}
-                  onPress={onClose}
-                >
-                  <Icon name="close" size={20} color="#333" />
-                </TouchableOpacity>
-              </View>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Görevi Düzenle</Text>
+            <View style={styles.headerIcons}>
+              <TouchableOpacity
+                onPress={() => {
+                  try {
+                    onDeleteTask();
+                  } catch (e) {
+                    console.error("Error calling onDeleteTask:", e);
+                  }
+                }}
+              >
+                <Icon name="delete" size={24} color="#FF3B30" style={{ marginRight: 15 }} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onClose}>
+                <Icon name="close" size={24} color="#333" />
+              </TouchableOpacity>
             </View>
           </View>
 
+          <TextInput
+            style={styles.input}
+            placeholder="Görev Başlığı"
+            value={editTitle}
+            onChangeText={setEditTitle}
+          />
 
-          <View style={styles.bottomContainer}>
+          <View style={styles.dateSection}>
             <TouchableOpacity
-              style={styles.submitButton}
-              onPress={() => onSave(editTitle)}
+              style={styles.datePickerButton}
+              onPress={() => setShowDatePicker(true)}
             >
-              <Text style={styles.submitButtonText}>Kaydet</Text>
+              <View style={styles.datePickerContent}>
+                <Icon name="calendar-today" size={20} color="#007AFF" />
+                <Text style={styles.datePickerText}>
+                  {formatDate(selectedDate)}
+                </Text>
+              </View>
             </TouchableOpacity>
+
+            {showDatePicker && (
+              <>
+                {Platform.OS === "ios" && (
+                  <View style={styles.iosPickerContainer}>
+                    <View style={styles.iosPickerHeader}>
+                      <TouchableOpacity
+                        onPress={() => setShowDatePicker(false)}
+                        style={styles.iosPickerDoneButton}
+                      >
+                        <Text style={styles.iosPickerDoneText}>Tamam</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={selectedDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={handleDateChange}
+                    />
+                  </View>
+                )}
+                {Platform.OS === "android" && (
+                  <DateTimePicker
+                    value={selectedDate}
+                    mode="date"
+                    display="default"
+                    onChange={handleDateChange}
+                  />
+                )}
+              </>
+            )}
           </View>
+
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={() => onSave(editTitle, selectedDate)}
+          >
+            <Text style={styles.submitButtonText}>Kaydet</Text>
+          </TouchableOpacity>
 
         </View>
       </View>
@@ -143,6 +172,7 @@ const styles = StyleSheet.create({
     width: "90%",
     maxHeight: "80%",
     borderWidth: 2,
+    borderColor: "#007AFF",
   },
   modalHeader: {
     flexDirection: "row",
@@ -151,6 +181,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingBottom: 10,
     borderBottomWidth: 2,
+    borderBottomColor: '#eee',
   },
   modalTitle: {
     fontSize: 20,
@@ -158,119 +189,68 @@ const styles = StyleSheet.create({
     color: "#333",
     flex: 1,
   },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flex: 1,
+  headerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  titleInput: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    flex: 1,
+  input: {
     borderWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#ddd",
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    padding: 10,
+    marginBottom: 15,
+    fontSize: 16,
+  },
+  dateSection: {
+    marginBottom: 15, // Adjusted to match CreateTaskModal logic (wrapper might not be needed but helps structure)
+  },
+  datePickerButton: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 10,
+    // marginBottom: 15, // handled by dateSection or directly
     backgroundColor: "#fff",
   },
-  bottomContainer: {
-    marginTop: "auto",
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  leftContainer: {
+  datePickerContent: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
   },
-  rightContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  dateContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  dateIcon: {
-    marginRight: 6,
-  },
-  detailValue: {
-    fontSize: 14,
-    color: "#666",
-    fontWeight: "500",
-  },
-  actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
+  datePickerText: {
+    fontSize: 16,
+    color: "#333",
   },
   submitButton: {
     backgroundColor: "#007AFF",
     padding: 15,
     borderRadius: 8,
     alignItems: "center",
+    marginTop: 10,
   },
   submitButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
   },
-  taskUsers: {
+  iosPickerContainer: {
+    marginBottom: 15,
+  },
+  iosPickerHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
   },
-  userBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 4,
+  iosPickerDoneButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 5,
   },
-  initialsText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  headerIcons: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  deleteIcon: {
-    padding: 4,
-  },
-  closeButton: {
-    backgroundColor: "#f5f5f5",
+  iosPickerDoneText: {
+    color: "#007AFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
 

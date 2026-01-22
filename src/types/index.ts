@@ -14,4 +14,13 @@ export interface Task {
   status: TaskStatus;
   createdAt: Date;
   createdBy: string;
+  isArchived?: boolean; // false: Active, true: Archived
+}
+
+export interface RecurringTask {
+  id?: string;
+  title: string;
+  createdBy: string;
+  lastCompletedAt?: Date;
+  createdAt?: Date;
 }

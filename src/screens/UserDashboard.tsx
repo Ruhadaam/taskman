@@ -20,8 +20,8 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 import { useAuth } from "../context/AuthContext";
-import { useTasks } from "../context/TaskContext"; // Import useTasks
-import { Task } from "../types";
+import { useTasks } from "../context/TaskContext";
+import { Task, RecurringTask } from "../types";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -35,11 +35,14 @@ type RootStackParamList = {
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+// Combined type for both regular and recurring tasks
+type DisplayTask = (Task & { isRecurringTask?: false }) | (RecurringTask & { isRecurringTask: true; status: 'waiting' });
+
 export default function UserDashboard() {
   const { user } = useAuth();
   const navigation = useNavigation<NavigationProp>();
   // Use Global Task Context
-  const { tasks, addTask, updateTaskStatus, updateTask, deleteTask, getTurkeyDayRange } = useTasks();
+  const { tasks, recurringTasks, addTask, addRecurringTask, completeRecurringTask, updateTaskStatus, updateTask, deleteTask } = useTasks();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -52,33 +55,37 @@ export default function UserDashboard() {
   });
   const [completingTaskIds, setCompletingTaskIds] = useState<Set<string>>(new Set());
 
-  // Memoize filtered tasks
+  // Memoize filtered tasks (combining regular + recurring)
   const filteredTasks = useMemo(() => {
     if (!user?.id) return [];
 
-    const range = getTurkeyDayRange();
-    const todayStart = new Date(range.start);
-    const todayEnd = new Date(range.end);
+    const today = new Date();
+    const todayStr = today.toDateString();
 
-    const duties = tasks.filter(task => {
+    // Filter regular tasks for today
+    const todayTasks: DisplayTask[] = tasks.filter(task => {
+      if (task.isArchived) return false;
+      if (task.status === 'completed') return false;
+
       const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
-      const isToday = taskDate >= todayStart && taskDate <= todayEnd;
-      return isToday;
-    });
+      return taskDate.toDateString() === todayStr;
+    }).map(t => ({ ...t, isRecurringTask: false as const }));
 
-    return duties.sort((a, b) => {
-      if (a.status === "completed" && b.status !== "completed") return 1;
-      if (a.status !== "completed" && b.status === "completed") return -1;
+    // Filter recurring tasks (show if not completed today)
+    const visibleRecurring: DisplayTask[] = recurringTasks.filter(task => {
+      if (!task.lastCompletedAt) return true;
+      const completedDate = new Date(task.lastCompletedAt);
+      return completedDate.toDateString() !== todayStr;
+    }).map(t => ({ ...t, isRecurringTask: true as const, status: 'waiting' as const }));
 
+    // Combine and sort by createdAt
+    const combined = [...todayTasks, ...visibleRecurring];
+    return combined.sort((a, b) => {
       const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      if (aTime !== bTime) return aTime - bTime;
-
-      const aId = a.id || "";
-      const bId = b.id || "";
-      return aId.localeCompare(bId);
+      return aTime - bTime;
     });
-  }, [tasks, user?.id]);
+  }, [tasks, recurringTasks, user?.id]);
 
   const handleCreateTask = async () => {
     if (!newTask.title) {
@@ -97,7 +104,7 @@ export default function UserDashboard() {
         status: "waiting",
         // @ts-ignore
         createdAt: newTask.createdAt || new Date(),
-        createdBy: user.id
+        createdBy: user.id,
       });
 
       setNewTask({
@@ -127,7 +134,7 @@ export default function UserDashboard() {
     }
   };
 
-  const toggleTaskDone = (task: Task) => {
+  const toggleTaskDone = (task: DisplayTask) => {
     if (!task.id) return;
 
     // Optimistic toggle logic
@@ -140,8 +147,28 @@ export default function UserDashboard() {
       return; // Abort
     }
 
+    // Handle recurring tasks differently
+    if (task.isRecurringTask) {
+      setCompletingTaskIds((prev) => new Set(prev).add(task.id!));
+
+      setTimeout(() => {
+        setCompletingTaskIds((currentSet) => {
+          if (currentSet.has(task.id!)) {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            completeRecurringTask(task.id!);
+            const next = new Set(currentSet);
+            next.delete(task.id!);
+            return next;
+          }
+          return currentSet;
+        });
+      }, 1000);
+      return;
+    }
+
+    // Regular task logic
     if (task.status === "completed") {
-      updateContextTaskStatus(task, "waiting");
+      updateContextTaskStatus(task as Task, "waiting");
       return;
     }
 
@@ -150,7 +177,7 @@ export default function UserDashboard() {
     setTimeout(() => {
       setCompletingTaskIds((currentSet) => {
         if (currentSet.has(task.id!)) {
-          updateContextTaskStatus(task, "completed");
+          updateContextTaskStatus(task as Task, "completed");
           const next = new Set(currentSet);
           next.delete(task.id!);
           return next;
@@ -184,11 +211,18 @@ export default function UserDashboard() {
     }
   };
 
-  const handleSaveTask = async (title: string) => {
+  const handleSaveTask = async (title: string, date: Date) => {
     if (!selectedTask?.id) return;
     try {
-      await updateTask(selectedTask.id, { title });
-      setSelectedTask({ ...selectedTask, title });
+      await updateTask(selectedTask.id, {
+        title,
+        createdAt: date
+      });
+      setSelectedTask({
+        ...selectedTask,
+        title,
+        createdAt: date
+      });
       setDetailModalVisible(false);
     } catch (error) {
       console.error("Görev güncellenirken hata:", error);
@@ -230,14 +264,14 @@ export default function UserDashboard() {
         data={filteredTasks}
         renderItem={({ item }) => (
           <TaskItem
-            item={item}
-            onToggle={toggleTaskDone}
-            onPress={handleTaskPress}
+            item={item as Task}
+            onToggle={() => toggleTaskDone(item)}
+            onPress={() => !item.isRecurringTask && handleTaskPress(item as Task)}
             isCompleting={item.id ? completingTaskIds.has(item.id) : false}
-            borderLeftColor={getBorderColor(item.status)}
+            borderLeftColor={item.isRecurringTask ? '#9C27B0' : getBorderColor(item.status)}
           />
         )}
-        keyExtractor={(item) => item.id || ""}
+        keyExtractor={(item) => (item.isRecurringTask ? `recurring-${item.id}` : item.id) || ""}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
       />
@@ -258,6 +292,11 @@ export default function UserDashboard() {
           setNewTask({ ...newTask, [field]: value })
         }
         onCreateTask={handleCreateTask}
+        onCreateRecurringTask={(title) => {
+          addRecurringTask(title);
+          setNewTask({ ...newTask, title: '' });
+          setModalVisible(false);
+        }}
       />
 
       <TaskDetailModal

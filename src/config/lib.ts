@@ -21,6 +21,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export const TABLES = {
   PROFILES: "profiles",
   TASKS: "tasks",
+  RECURRING_TASKS: "recurring_tasks",
   NOTIFICATIONS: "notifications",
 } as const;
 
@@ -34,7 +35,6 @@ export type Database = {
           uid: string;
           name: string;
           email: string;
-          isAdmin: boolean;
           createdAt: string;
           unseen: string[];
           seen: string[];
@@ -44,7 +44,6 @@ export type Database = {
           user_id: string;
           name: string;
           email: string;
-          isAdmin?: boolean;
           createdAt?: string;
           unseen?: string[];
           seen?: string[];
@@ -54,7 +53,6 @@ export type Database = {
           user_id?: string;
           name?: string;
           email?: string;
-          isAdmin?: boolean;
           createdAt?: string;
           unseen?: string[];
           seen?: string[];

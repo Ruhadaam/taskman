@@ -1,4 +1,5 @@
 import React from "react";
+import { Text } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import UserDashboard from "../screens/UserDashboard";
@@ -18,7 +19,7 @@ export default function UserTabNavigator() {
 
         return tasks.filter(task => {
             const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
-            return task.status === 'waiting' && taskDate < todayStart;
+            return task.status === 'waiting' && taskDate < todayStart && !task.isArchived;
         }).length;
     };
 
@@ -31,8 +32,12 @@ export default function UserTabNavigator() {
                 tabBarActiveTintColor: "#007AFF",
                 tabBarInactiveTintColor: "gray",
                 tabBarStyle: {
-                    paddingBottom: 5,
-                    height: 60,
+                    paddingBottom: 1,
+                    height: 65,
+                },
+                tabBarLabelStyle: {
+                    fontSize: 10,
+                    marginBottom: 3,
                 },
             }}
         >
@@ -40,7 +45,7 @@ export default function UserTabNavigator() {
                 name="Duties"
                 component={UserDashboard}
                 options={{
-                    tabBarLabel: "Görevler",
+                    tabBarLabel: "Bugün",
                     tabBarIcon: ({ color, size }) => (
                         <Icon name="check-circle" size={size} color={color} />
                     ),
@@ -60,11 +65,14 @@ export default function UserTabNavigator() {
                 name="Overdue"
                 component={OverdueTasksScreen}
                 options={{
-                    tabBarLabel: "Kalanlar",
+                    tabBarLabel: ({ color }) => (
+                        <Text style={{ color, fontSize: 10, textAlign: 'center', marginBottom: 3 }}>
+                            {overdueCount > 0 ? `Kalanlar\n(${overdueCount})` : "Kalanlar"}
+                        </Text>
+                    ),
                     tabBarIcon: ({ color, size }) => (
                         <Icon name="history" size={size} color={color} />
                     ),
-                    tabBarBadge: overdueCount > 0 ? overdueCount : undefined,
                 }}
             />
             <Tab.Screen

@@ -5,8 +5,8 @@ import {
     StyleSheet,
     Platform,
     UIManager,
-    SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Agenda, AgendaSchedule } from "react-native-calendars";
 import { useAuth } from "../context/AuthContext";
 import { useTasks } from "../context/TaskContext";
@@ -41,7 +41,7 @@ export default function UpcomingTasksScreen() {
 
         // Fill with tasks
         tasks.forEach(task => {
-            if (!task.createdAt) return;
+            if (!task.createdAt || task.isArchived) return;
             const date = new Date(task.createdAt);
             const dateString = date.toISOString().split('T')[0];
 
@@ -50,6 +50,7 @@ export default function UpcomingTasksScreen() {
             }
             newItems[dateString].push({
                 ...task,
+                name: task.title,
                 height: 80, // Approximate height for agenda
                 day: dateString
             });
@@ -95,6 +96,13 @@ export default function UpcomingTasksScreen() {
                 selected={today}
                 renderItem={renderItem}
                 renderEmptyDate={renderEmptyDate}
+                renderEmptyData={() => {
+                    return (
+                        <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>Yüklenecek veri yok</Text>
+                        </View>
+                    );
+                }}
                 rowHasChanged={(r1: any, r2: any) => {
                     return r1.id !== r2.id || r1.status !== r2.status || r1.title !== r2.title;
                 }}
@@ -169,5 +177,15 @@ const styles = StyleSheet.create({
     emptyDateText: {
         color: '#ccc',
         fontSize: 12,
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 50,
+    },
+    emptyText: {
+        fontSize: 16,
+        color: '#888',
     }
 });

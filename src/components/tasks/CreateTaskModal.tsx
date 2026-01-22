@@ -18,6 +18,7 @@ interface CreateTaskModalProps {
   newTask: Task;
   onTaskChange: (field: keyof Task, value: any) => void;
   onCreateTask: () => void;
+  onCreateRecurringTask?: (title: string) => void;
 }
 
 const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
@@ -26,8 +27,10 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   newTask,
   onTaskChange,
   onCreateTask,
+  onCreateRecurringTask,
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(false);
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat("tr-TR", {
@@ -115,7 +118,27 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             </>
           )}
 
-          <TouchableOpacity style={styles.submitButton} onPress={onCreateTask}>
+          <TouchableOpacity
+            style={styles.checkboxContainer}
+            onPress={() => setIsRecurring(!isRecurring)}
+          >
+            <View style={[styles.checkbox, isRecurring && styles.checkboxChecked]}>
+              {isRecurring && <Icon name="check" size={16} color="#fff" />}
+            </View>
+            <Text style={styles.checkboxLabel}>Sürekli Görev (Her gün tekrarlar)</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={() => {
+              if (isRecurring && onCreateRecurringTask) {
+                onCreateRecurringTask(newTask.title);
+                setIsRecurring(false);
+              } else {
+                onCreateTask();
+              }
+            }}
+          >
             <Text style={styles.submitButtonText}>Görev Oluştur</Text>
           </TouchableOpacity>
         </View>
@@ -242,6 +265,35 @@ const styles = StyleSheet.create({
     color: "#007AFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  checkboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+    backgroundColor: "#f9f9f9",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#ccc",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+    backgroundColor: "#fff",
+  },
+  checkboxChecked: {
+    backgroundColor: "#007AFF",
+    borderColor: "#007AFF",
+  },
+  checkboxLabel: {
+    fontSize: 16,
+    color: "#333",
   },
 });
 

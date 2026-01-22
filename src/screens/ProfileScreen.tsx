@@ -1,23 +1,35 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, ScrollView, Image } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
+  const { toggleTheme, isDark, colors } = useTheme();
   const navigation = useNavigation<any>();
 
   const handleSignOut = async () => {
-    try {
-      await signOut();
-      // Navigation will be handled by the auth state change in App.tsx usually, 
-      // but if explicit navigation is needed:
-      // navigation.navigate("LoginScreen");
-    } catch (error) {
-      console.error("Çıkış yapılırken hata oluştu:", error);
-      Alert.alert("Hata", "Çıkış yapılırken bir hata oluştu");
-    }
+    Alert.alert(
+      "Çıkış Yap",
+      "Çıkış yapmak istediğinize emin misiniz?",
+      [
+        { text: "İptal", style: "cancel" },
+        {
+          text: "Çıkış Yap",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await signOut();
+            } catch (error) {
+              console.error("Çıkış yapılırken hata oluştu:", error);
+              Alert.alert("Hata", "Çıkış yapılırken bir hata oluştu");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getInitials = (name: string) => {
@@ -28,119 +40,174 @@ export default function ProfileScreen() {
       .toUpperCase();
   };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profil</Text>
+  const SettingItem = ({ icon, title, onPress, value, type = "link", danger = false }: any) => (
+    <TouchableOpacity
+      style={[
+        styles.settingItem,
+        { backgroundColor: colors.card, borderBottomColor: colors.border }
+      ]}
+      onPress={onPress}
+      disabled={type === "switch"}
+    >
+      <View style={styles.settingLeft}>
+        <View style={[styles.iconContainer, { backgroundColor: danger ? "rgba(255, 59, 48, 0.1)" : isDark ? "#333" : "#f0f0f0" }]}>
+          <Icon name={icon} size={22} color={danger ? "#FF3B30" : colors.text} />
+        </View>
+        <Text style={[styles.settingText, { color: danger ? "#FF3B30" : colors.text }]}>{title}</Text>
       </View>
 
-      <View style={styles.content}>
+      {type === "switch" && (
+        <Switch
+          value={value}
+          onValueChange={onPress}
+          trackColor={{ false: "#767577", true: "#34C759" }}
+          thumbColor={isDark ? "#fff" : "#f4f3f4"}
+        />
+      )}
+
+      {type === "link" && (
+        <Icon name="chevron-right" size={24} color={colors.textSecondary} />
+      )}
+    </TouchableOpacity>
+  );
+
+  return (
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
+          <View style={[styles.avatar, { borderColor: colors.border }]}>
             <Text style={styles.avatarText}>
               {user?.name ? getInitials(user.name) : "?"}
             </Text>
           </View>
-          <Text style={styles.userName}>{user?.name || "Kullanıcı"}</Text>
-          <Text style={styles.userEmail}>{user?.email || ""}</Text>
+          <View style={styles.userInfo}>
+            <Text style={[styles.userName, { color: colors.text }]}>{user?.name || "Kullanıcı"}</Text>
+            <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{user?.email || ""}</Text>
+          </View>
         </View>
-
-        <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
-          <Icon name="logout" size={24} color="#fff" />
-          <Text style={styles.logoutText}>Çıkış Yap</Text>
-        </TouchableOpacity>
       </View>
-    </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>HESAP AYARLARI</Text>
+        <View style={[styles.sectionContent, { backgroundColor: colors.card }]}>
+          <SettingItem
+            icon="settings"
+            title="Genel Ayarlar"
+            onPress={() => Alert.alert("Bilgi", "Bu özellik yakında eklenecek.")}
+          />
+          <SettingItem
+            icon="logout"
+            title="Çıkış Yap"
+            onPress={handleSignOut}
+            danger={true}
+          />
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>TEMA AYARLARI</Text>
+        <View style={[styles.sectionContent, { backgroundColor: colors.card }]}>
+          <SettingItem
+            icon={isDark ? "dark-mode" : "light-mode"}
+            title={isDark ? "Koyu Tema" : "Açık Tema"}
+            type="switch"
+            value={isDark}
+            onPress={toggleTheme}
+          />
+        </View>
+      </View>
+
+      <View style={styles.versionContainer}>
+        <Text style={[styles.versionText, { color: colors.textSecondary }]}>Sürüm 1.0.0</Text>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
   },
   header: {
     padding: 20,
     paddingTop: 60,
-    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-    alignItems: "center",
+    marginBottom: 20,
   },
   avatarContainer: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 40,
-    marginTop: 20,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: "#007AFF",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 5,
+    borderWidth: 2,
   },
   avatarText: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: "bold",
     color: "#fff",
+  },
+  userInfo: {
+    marginLeft: 15,
   },
   userName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
-    color: "#333",
-    marginBottom: 8,
   },
   userEmail: {
-    fontSize: 16,
-    color: "#666",
+    fontSize: 14,
+    marginTop: 4,
   },
-  infoSection: {
-    width: '100%',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 30,
+  section: {
+    marginBottom: 25,
   },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 8,
+    paddingHorizontal: 20,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  infoText: {
-    fontSize: 16,
-    color: "#333",
+  sectionContent: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0,0,0,0.1)',
   },
-  logoutButton: {
+  settingItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FF3B30",
+    justifyContent: "space-between",
     paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    gap: 8,
-    width: '100%',
+    paddingHorizontal: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  logoutText: {
-    color: "#fff",
+  settingLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  iconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  settingText: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "500",
   },
+  versionContainer: {
+    alignItems: "center",
+    padding: 20,
+  },
+  versionText: {
+    fontSize: 12,
+  }
 });

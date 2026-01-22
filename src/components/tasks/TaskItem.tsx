@@ -10,6 +10,7 @@ interface TaskItemProps {
     isCompleting: boolean;
     borderLeftColor: string;
     date?: string;
+    rightContent?: React.ReactNode;
 }
 
 const TaskItem: React.FC<TaskItemProps> = ({
@@ -19,6 +20,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
     isCompleting,
     borderLeftColor,
     date,
+    rightContent,
 }) => {
     const isCompletedOrCompleting =
         item.status === "completed" || isCompleting;
@@ -56,6 +58,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
                     </Text>
                 )}
             </TouchableOpacity>
+            {rightContent && (
+                <View style={styles.rightContentContainer}>
+                    {rightContent}
+                </View>
+            )}
         </View>
     );
 };
@@ -113,6 +120,9 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: "#666",
         marginTop: 4,
+    },
+    rightContentContainer: {
+        marginLeft: 8,
     },
 });
 

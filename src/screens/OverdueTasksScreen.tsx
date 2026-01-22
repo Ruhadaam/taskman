@@ -7,12 +7,15 @@ import {
     Platform,
     UIManager,
     LayoutAnimation,
+    TouchableOpacity,
+    Modal,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useTasks } from "../context/TaskContext";
 import { Task } from "../types";
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
 import TaskItem from "../components/tasks/TaskItem";
+import { MaterialIcons as Icon } from "@expo/vector-icons";
 
 if (
     Platform.OS === "android" &&
@@ -29,13 +32,22 @@ export default function OverdueTasksScreen() {
     const [detailModalVisible, setDetailModalVisible] = useState(false);
     const [completingTaskIds, setCompletingTaskIds] = useState<Set<string>>(new Set());
 
+    // Action Modal State
+    const [actionModalVisible, setActionModalVisible] = useState(false);
+    const [actionTask, setActionTask] = useState<Task | null>(null);
+
     // Memoize filtered tasks
     const filteredTasks = useMemo(() => {
         const range = getTurkeyDayRange();
         const todayStart = new Date(range.start);
 
         const overdue = tasks.filter((task) => {
-            const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
+            if (!task.createdAt) return false;
+
+            // Exclude archived tasks
+            if (task.isArchived) return false;
+
+            const taskDate = new Date(task.createdAt);
             // Filter for tasks created BEFORE today and NOT completed
             return task.status === "waiting" && taskDate < todayStart;
         });
@@ -117,16 +129,85 @@ export default function OverdueTasksScreen() {
         }
     };
 
-    const handleSaveTask = async (title: string) => {
+    const handleSaveTask = async (title: string, date: Date) => {
         if (!selectedTask?.id) return;
         try {
-            await updateTask(selectedTask.id, { title });
-            setSelectedTask({ ...selectedTask, title });
+            await updateTask(selectedTask.id, {
+                title,
+                createdAt: date
+            });
+            setSelectedTask({
+                ...selectedTask,
+                title,
+                createdAt: date
+            });
             setDetailModalVisible(false);
         } catch (error) {
             console.error("Görev güncellenirken hata:", error);
         }
     };
+
+    const handleAddToToday = async (task: Task) => {
+        if (!task.id) return;
+        try {
+            // Use Turkey timezone-aware date to ensure task appears in today's list
+            const range = getTurkeyDayRange();
+            const todayDate = new Date(range.start);
+            // Add a small offset to ensure it's clearly within today's range
+            todayDate.setHours(12, 0, 0, 0);
+            await updateTask(task.id, { createdAt: todayDate });
+        } catch (error) {
+            console.error("Bugüne eklenirken hata:", error);
+        }
+    };
+
+    const handleArchive = async (task: Task) => {
+        if (!task.id) return;
+        try {
+            await updateTask(task.id, { isArchived: true });
+        } catch (error) {
+            console.error("Archive error:", error);
+        }
+    };
+
+    const handleOpenActionModal = (task: Task) => {
+        setActionTask(task);
+        setActionModalVisible(true);
+    };
+
+    const handleCloseActionModal = () => {
+        setActionModalVisible(false);
+        setActionTask(null);
+    };
+
+    const executeAddToToday = () => {
+        if (actionTask) handleAddToToday(actionTask);
+        handleCloseActionModal();
+    };
+
+    const executeArchive = () => {
+        if (actionTask) handleArchive(actionTask);
+        handleCloseActionModal();
+    };
+
+    const renderOverdueItem = ({ item }: { item: Task }) => (
+        <TaskItem
+            item={item}
+            onToggle={toggleTaskDone}
+            onPress={handleTaskPress}
+            isCompleting={item.id ? completingTaskIds.has(item.id) : false}
+            borderLeftColor="#FF3B30"
+            date={item.createdAt ? new Date(item.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' }) : ''}
+            rightContent={
+                <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => handleOpenActionModal(item)}
+                >
+                    <Icon name="edit" size={24} color="#555" />
+                </TouchableOpacity>
+            }
+        />
+    );
 
     return (
         <View style={styles.container}>
@@ -135,16 +216,7 @@ export default function OverdueTasksScreen() {
             </View>
             <FlatList
                 data={filteredTasks}
-                renderItem={({ item }) => (
-                    <TaskItem
-                        item={item}
-                        onToggle={toggleTaskDone}
-                        onPress={handleTaskPress}
-                        isCompleting={item.id ? completingTaskIds.has(item.id) : false}
-                        borderLeftColor="#FF3B30"
-                        date={item.createdAt ? new Date(item.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' }) : ''}
-                    />
-                )}
+                renderItem={renderOverdueItem}
                 keyExtractor={(item) => item.id || ""}
                 contentContainerStyle={styles.listContainer}
                 showsVerticalScrollIndicator={false}
@@ -158,6 +230,35 @@ export default function OverdueTasksScreen() {
                 onDeleteTask={handleDeleteTask}
                 onSave={handleSaveTask}
             />
+
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={actionModalVisible}
+                onRequestClose={handleCloseActionModal}
+            >
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={handleCloseActionModal}
+                >
+                    <View style={styles.actionModalContent}>
+                        <Text style={styles.modalTitle}>Seçenekler</Text>
+
+                        <View style={styles.actionButtonsRow}>
+                            <TouchableOpacity style={[styles.modalActionButton, styles.todayButton]} onPress={executeAddToToday}>
+                                <Icon name="today" size={20} color="#fff" />
+                                <Text style={styles.modalActionButtonText}>Bugüne Ekle</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={[styles.modalActionButton, styles.archiveButton]} onPress={executeArchive}>
+                                <Icon name="archive" size={20} color="#fff" />
+                                <Text style={styles.modalActionButtonText}>Arşivle</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
         </View>
     );
 }
@@ -234,5 +335,63 @@ const styles = StyleSheet.create({
     emptyText: {
         fontSize: 16,
         color: '#999'
-    }
+    },
+    editButton: {
+        padding: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: 4,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    actionModalContent: {
+        backgroundColor: 'white',
+        borderRadius: 16,
+        padding: 24,
+        width: '85%',
+        maxWidth: 340,
+        elevation: 5,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 20,
+        color: '#333',
+        textAlign: 'center',
+    },
+    actionButtonsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    modalActionButton: {
+        flex: 1,
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 8,
+        borderRadius: 12,
+        gap: 8,
+    },
+    todayButton: {
+        backgroundColor: '#007AFF',
+    },
+    archiveButton: {
+        backgroundColor: '#8E8E93',
+    },
+    modalActionButtonText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '600',
+        textAlign: 'center',
+    },
 });

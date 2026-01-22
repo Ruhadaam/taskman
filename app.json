@@ -3,7 +3,7 @@
     "name": "Vzbel",
     "slug": "task-management-app",
     "scheme": "vzbel",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/app-icon.png",
     "userInterfaceStyle": "white",
@@ -42,7 +42,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.vzbel.vzbelapp",
-      "buildNumber": "1.0.0",
+      "buildNumber": "1.0.2",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }

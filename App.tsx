@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { TaskProvider } from "./src/context/TaskContext";
 import { supabase } from "./src/config/lib";
 import * as Linking from 'expo-linking';
+import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 
 // Ekranlar
 import LoginScreen from "./src/screens/LoginScreen";
@@ -25,17 +26,27 @@ type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+const AppContent = () => {
+  const { colors, isDark } = useTheme();
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDark ? "light" : "dark"} />
+      <AuthProvider>
+        <TaskProvider>
+          <RootNavigator />
+        </TaskProvider>
+      </AuthProvider>
+    </View>
+  );
+};
+
 const App = () => {
   return (
     <SafeAreaProvider>
-      <View style={styles.container}>
-        <StatusBar style="dark" />
-        <AuthProvider>
-          <TaskProvider>
-            <RootNavigator />
-          </TaskProvider>
-        </AuthProvider>
-      </View>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 };
