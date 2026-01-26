@@ -10,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Agenda, AgendaSchedule } from "react-native-calendars";
 import { useAuth } from "../context/AuthContext";
 import { useTasks } from "../context/TaskContext";
+import { useTheme } from "../context/ThemeContext";
 import { Task } from "../types";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -33,6 +34,7 @@ export default function UpcomingTasksScreen() {
     const { user } = useAuth();
     const navigation = useNavigation<NavigationProp>();
     const { tasks } = useTasks();
+    const { colors, isDark } = useTheme();
 
     const [items, setItems] = useState<AgendaSchedule>({});
 
@@ -63,16 +65,16 @@ export default function UpcomingTasksScreen() {
         const isCompleted = task.status === 'completed';
 
         return (
-            <View style={[styles.item, isCompleted && styles.itemCompleted]}>
+            <View style={[styles.item, { backgroundColor: colors.card, borderLeftColor: colors.primary }, isCompleted && { borderLeftColor: colors.success, opacity: 0.7 }]}>
                 <View style={styles.itemContent}>
-                    <Text style={[styles.itemTitle, isCompleted && styles.itemTextCompleted]}>{task.title}</Text>
+                    <Text style={[styles.itemTitle, { color: colors.text }, isCompleted && styles.itemTextCompleted]}>{task.title}</Text>
                 </View>
                 <View style={styles.statusIndicator}>
                     {/* Only Visual Indicator */}
                     {isCompleted ? (
-                        <Icon name="check-circle" size={16} color="#34C759" />
+                        <Icon name="check-circle" size={16} color={colors.success} />
                     ) : (
-                        <Icon name="schedule" size={16} color="#007AFF" />
+                        <Icon name="schedule" size={16} color={colors.primary} />
                     )}
                 </View>
             </View>
@@ -82,7 +84,7 @@ export default function UpcomingTasksScreen() {
     const renderEmptyDate = () => {
         return (
             <View style={styles.emptyDate}>
-                <Text style={styles.emptyDateText}>Bu tarihte görev yok</Text>
+                <Text style={[styles.emptyDateText, { color: colors.textSecondary }]}>Bu tarihte görev yok</Text>
             </View>
         );
     };
@@ -90,7 +92,7 @@ export default function UpcomingTasksScreen() {
     const today = new Date().toISOString().split('T')[0];
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
             <Agenda
                 items={items}
                 selected={today}
@@ -99,7 +101,7 @@ export default function UpcomingTasksScreen() {
                 renderEmptyData={() => {
                     return (
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>Yüklenecek veri yok</Text>
+                            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Yüklenecek veri yok</Text>
                         </View>
                     );
                 }}
@@ -108,15 +110,27 @@ export default function UpcomingTasksScreen() {
                 }}
                 showClosingKnob={true}
                 theme={{
-                    agendaDayTextColor: '#888',
-                    agendaDayNumColor: '#333',
-                    agendaTodayColor: '#007AFF',
-                    agendaKnobColor: '#007AFF',
-                    selectedDayBackgroundColor: '#007AFF',
-                    dotColor: '#007AFF',
-                    todayTextColor: '#007AFF',
-                    // Ensure centered today
-                    calendarBackground: '#ffffff',
+                    // Agenda Theme
+                    agendaDayTextColor: colors.textSecondary,
+                    agendaDayNumColor: colors.text,
+                    agendaTodayColor: colors.primary,
+                    agendaKnobColor: colors.primary,
+
+                    // Calendar Theme
+                    calendarBackground: colors.card,
+                    backgroundColor: colors.background,
+
+                    dayTextColor: colors.text,
+                    monthTextColor: colors.text,
+                    textSectionTitleColor: colors.textSecondary,
+                    textDisabledColor: isDark ? '#444' : '#d9e1e8',
+
+                    selectedDayBackgroundColor: colors.primary,
+                    selectedDayTextColor: '#ffffff',
+
+                    todayTextColor: colors.primary,
+                    dotColor: colors.primary,
+                    selectedDotColor: '#ffffff',
                 }}
             // Force refresh on mount by key if needed, or rely on 'selected' prop
             />

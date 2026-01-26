@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useTasks } from "../context/TaskContext";
+import { useTheme } from "../context/ThemeContext";
 import { Task } from "../types";
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
 import TaskItem from "../components/tasks/TaskItem";
@@ -27,6 +28,7 @@ if (
 export default function OverdueTasksScreen() {
     const navigation = useNavigation();
     const { tasks, updateTaskStatus, updateTask, deleteTask, getTurkeyDayRange } = useTasks();
+    const { colors, isDark } = useTheme();
 
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -203,16 +205,17 @@ export default function OverdueTasksScreen() {
                     style={styles.editButton}
                     onPress={() => handleOpenActionModal(item)}
                 >
-                    <Icon name="edit" size={24} color="#555" />
+                    <Icon name="edit" size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
             }
+            themeColors={colors}
         />
     );
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Kalan Görevler</Text>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+                <Text style={[styles.title, { color: colors.text }]}>Kalan Görevler</Text>
             </View>
             <FlatList
                 data={filteredTasks}
@@ -242,11 +245,11 @@ export default function OverdueTasksScreen() {
                     activeOpacity={1}
                     onPress={handleCloseActionModal}
                 >
-                    <View style={styles.actionModalContent}>
-                        <Text style={styles.modalTitle}>Seçenekler</Text>
+                    <View style={[styles.actionModalContent, { backgroundColor: colors.card }]}>
+                        <Text style={[styles.modalTitle, { color: colors.text }]}>Seçenekler</Text>
 
                         <View style={styles.actionButtonsRow}>
-                            <TouchableOpacity style={[styles.modalActionButton, styles.todayButton]} onPress={executeAddToToday}>
+                            <TouchableOpacity style={[styles.modalActionButton, styles.todayButton, { backgroundColor: colors.primary }]} onPress={executeAddToToday}>
                                 <Icon name="today" size={20} color="#fff" />
                                 <Text style={styles.modalActionButtonText}>Bugüne Ekle</Text>
                             </TouchableOpacity>

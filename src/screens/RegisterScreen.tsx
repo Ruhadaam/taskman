@@ -15,6 +15,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 
 type RootStackParamList = {
@@ -38,6 +39,7 @@ const RegisterScreen = () => {
     const navigation = useNavigation<RegisterScreenNavigationProp>();
     const { signUp } = useAuth();
     const [loading, setLoading] = useState(false);
+    const { colors, isDark } = useTheme();
 
     const handleRegister = async () => {
         if (!email || !password || !confirmPassword) {
@@ -67,7 +69,7 @@ const RegisterScreen = () => {
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
                 style={styles.container}
@@ -77,45 +79,45 @@ const RegisterScreen = () => {
                     keyboardShouldPersistTaps="handled"
                 >
                     <View style={styles.logoContainer}>
-                        <View style={styles.logoBackground}>
+                        <View style={[styles.logoBackground, , { backgroundColor: isDark ? colors.card : "#fff" }]}>
                             <Image
                                 source={require("../../assets/icon.png")}
                                 style={styles.logo}
                                 resizeMode="contain"
                             />
                         </View>
-                        <Text style={styles.title}>Vzbel</Text>
-                        <Text style={styles.subtitle}>Yeni Hesap Oluştur</Text>
+                        <Text style={[styles.title, { color: colors.text }]}>Vzbel</Text>
+                        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Yeni Hesap Oluştur</Text>
                     </View>
 
                     <View style={styles.formContainer}>
-                        <View style={styles.inputContainer}>
+                        <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
                             <Icon
                                 name="email"
                                 size={24}
-                                color="#666"
+                                color={colors.textSecondary}
                                 style={styles.inputIcon}
                             />
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { color: colors.text }]}
                                 placeholder="Email"
                                 value={email}
                                 onChangeText={setEmail}
                                 keyboardType="email-address"
                                 autoCapitalize="none"
-                                placeholderTextColor="#999"
+                                placeholderTextColor={colors.textSecondary}
                             />
                         </View>
 
-                        <View style={styles.inputContainer}>
-                            <Icon name="lock" size={24} color="#666" style={styles.inputIcon} />
+                        <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+                            <Icon name="lock" size={24} color={colors.textSecondary} style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { color: colors.text }]}
                                 placeholder="Şifre"
                                 value={password}
                                 onChangeText={setPassword}
                                 secureTextEntry={!isPasswordVisible}
-                                placeholderTextColor="#999"
+                                placeholderTextColor={colors.textSecondary}
                             />
                             <TouchableOpacity
                                 onPress={() => setIsPasswordVisible(!isPasswordVisible)}
@@ -124,20 +126,20 @@ const RegisterScreen = () => {
                                 <Icon
                                     name={isPasswordVisible ? "visibility" : "visibility-off"}
                                     size={24}
-                                    color="#666"
+                                    color={colors.textSecondary}
                                 />
                             </TouchableOpacity>
                         </View>
 
-                        <View style={styles.inputContainer}>
-                            <Icon name="lock-outline" size={24} color="#666" style={styles.inputIcon} />
+                        <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+                            <Icon name="lock-outline" size={24} color={colors.textSecondary} style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { color: colors.text }]}
                                 placeholder="Şifre Tekrar"
                                 value={confirmPassword}
                                 onChangeText={setConfirmPassword}
                                 secureTextEntry={!isConfirmPasswordVisible}
-                                placeholderTextColor="#999"
+                                placeholderTextColor={colors.textSecondary}
                             />
                             <TouchableOpacity
                                 onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}
@@ -146,7 +148,7 @@ const RegisterScreen = () => {
                                 <Icon
                                     name={isConfirmPasswordVisible ? "visibility" : "visibility-off"}
                                     size={24}
-                                    color="#666"
+                                    color={colors.textSecondary}
                                 />
                             </TouchableOpacity>
                         </View>

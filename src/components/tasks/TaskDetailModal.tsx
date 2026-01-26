@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, Modal, StyleSheet, TextInput, Platform } from "react-native";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useTheme } from "../../context/ThemeContext";
 import { Task } from "../../types";
 
 interface TaskDetailModalProps {
@@ -27,6 +28,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [editTitle, setEditTitle] = useState(selectedTask.title);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const { colors, isDark } = useTheme();
 
   useEffect(() => {
     if (selectedTask) {
@@ -72,9 +74,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Görevi Düzenle</Text>
+        <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.primary }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Görevi Düzenle</Text>
             <View style={styles.headerIcons}>
               <TouchableOpacity
                 onPress={() => {
@@ -85,29 +87,30 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   }
                 }}
               >
-                <Icon name="delete" size={24} color="#FF3B30" style={{ marginRight: 15 }} />
+                <Icon name="delete" size={24} color={colors.danger} style={{ marginRight: 15 }} />
               </TouchableOpacity>
               <TouchableOpacity onPress={onClose}>
-                <Icon name="close" size={24} color="#333" />
+                <Icon name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
           </View>
 
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBackground }]}
             placeholder="Görev Başlığı"
+            placeholderTextColor={colors.textSecondary}
             value={editTitle}
             onChangeText={setEditTitle}
           />
 
           <View style={styles.dateSection}>
             <TouchableOpacity
-              style={styles.datePickerButton}
+              style={[styles.datePickerButton, { borderColor: colors.border, backgroundColor: colors.inputBackground }]}
               onPress={() => setShowDatePicker(true)}
             >
               <View style={styles.datePickerContent}>
-                <Icon name="calendar-today" size={20} color="#007AFF" />
-                <Text style={styles.datePickerText}>
+                <Icon name="calendar-today" size={20} color={colors.primary} />
+                <Text style={[styles.datePickerText, { color: colors.text }]}>
                   {formatDate(selectedDate)}
                 </Text>
               </View>
@@ -117,12 +120,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               <>
                 {Platform.OS === "ios" && (
                   <View style={styles.iosPickerContainer}>
-                    <View style={styles.iosPickerHeader}>
+                    <View style={[styles.iosPickerHeader, { borderBottomColor: colors.border }]}>
                       <TouchableOpacity
                         onPress={() => setShowDatePicker(false)}
                         style={styles.iosPickerDoneButton}
                       >
-                        <Text style={styles.iosPickerDoneText}>Tamam</Text>
+                        <Text style={[styles.iosPickerDoneText, { color: colors.primary }]}>Tamam</Text>
                       </TouchableOpacity>
                     </View>
                     <DateTimePicker
@@ -130,6 +133,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       mode="date"
                       display="spinner"
                       onChange={handleDateChange}
+                      themeVariant={isDark ? "dark" : "light"}
                     />
                   </View>
                 )}
@@ -146,7 +150,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           </View>
 
           <TouchableOpacity
-            style={styles.submitButton}
+            style={[styles.submitButton, { backgroundColor: colors.primary }]}
             onPress={() => onSave(editTitle, selectedDate)}
           >
             <Text style={styles.submitButtonText}>Kaydet</Text>

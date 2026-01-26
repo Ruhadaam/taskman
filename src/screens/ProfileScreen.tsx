@@ -1,36 +1,14 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, ScrollView, Image } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
-  const { toggleTheme, isDark, colors } = useTheme();
+  const { user } = useAuth();
+  const { colors, isDark } = useTheme();
   const navigation = useNavigation<any>();
-
-  const handleSignOut = async () => {
-    Alert.alert(
-      "Çıkış Yap",
-      "Çıkış yapmak istediğinize emin misiniz?",
-      [
-        { text: "İptal", style: "cancel" },
-        {
-          text: "Çıkış Yap",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await signOut();
-            } catch (error) {
-              console.error("Çıkış yapılırken hata oluştu:", error);
-              Alert.alert("Hata", "Çıkış yapılırken bir hata oluştu");
-            }
-          },
-        },
-      ]
-    );
-  };
 
   const getInitials = (name: string) => {
     return name
@@ -40,39 +18,29 @@ export default function ProfileScreen() {
       .toUpperCase();
   };
 
-  const SettingItem = ({ icon, title, onPress, value, type = "link", danger = false }: any) => (
+  const SettingItem = ({ icon, title, onPress }: any) => (
     <TouchableOpacity
       style={[
         styles.settingItem,
         { backgroundColor: colors.card, borderBottomColor: colors.border }
       ]}
       onPress={onPress}
-      disabled={type === "switch"}
     >
       <View style={styles.settingLeft}>
-        <View style={[styles.iconContainer, { backgroundColor: danger ? "rgba(255, 59, 48, 0.1)" : isDark ? "#333" : "#f0f0f0" }]}>
-          <Icon name={icon} size={22} color={danger ? "#FF3B30" : colors.text} />
+        <View style={[styles.iconContainer, { backgroundColor: isDark ? "#333" : "#f0f0f0" }]}>
+          <Icon name={icon} size={22} color={colors.text} />
         </View>
-        <Text style={[styles.settingText, { color: danger ? "#FF3B30" : colors.text }]}>{title}</Text>
+        <Text style={[styles.settingText, { color: colors.text }]}>{title}</Text>
       </View>
-
-      {type === "switch" && (
-        <Switch
-          value={value}
-          onValueChange={onPress}
-          trackColor={{ false: "#767577", true: "#34C759" }}
-          thumbColor={isDark ? "#fff" : "#f4f3f4"}
-        />
-      )}
-
-      {type === "link" && (
+      <View style={styles.settingRight}>
         <Icon name="chevron-right" size={24} color={colors.textSecondary} />
-      )}
+      </View>
     </TouchableOpacity>
   );
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={styles.avatarContainer}>
           <View style={[styles.avatar, { borderColor: colors.border }]}>
@@ -88,38 +56,26 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>HESAP AYARLARI</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>AYARLAR</Text>
         <View style={[styles.sectionContent, { backgroundColor: colors.card }]}>
+          <SettingItem
+            icon="account-circle"
+            title="Hesap"
+            onPress={() => navigation.navigate("Account")}
+          />
           <SettingItem
             icon="settings"
-            title="Genel Ayarlar"
-            onPress={() => Alert.alert("Bilgi", "Bu özellik yakında eklenecek.")}
+            title="Genel"
+            onPress={() => navigation.navigate("General")}
           />
-          <SettingItem
-            icon="logout"
-            title="Çıkış Yap"
-            onPress={handleSignOut}
-            danger={true}
-          />
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>TEMA AYARLARI</Text>
-        <View style={[styles.sectionContent, { backgroundColor: colors.card }]}>
           <SettingItem
             icon={isDark ? "dark-mode" : "light-mode"}
-            title={isDark ? "Koyu Tema" : "Açık Tema"}
-            type="switch"
-            value={isDark}
-            onPress={toggleTheme}
+            title="Tema"
+            onPress={() => navigation.navigate("Theme")}
           />
         </View>
       </View>
 
-      <View style={styles.versionContainer}>
-        <Text style={[styles.versionText, { color: colors.textSecondary }]}>Sürüm 1.0.0</Text>
-      </View>
     </ScrollView>
   );
 }
@@ -191,6 +147,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  settingRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   iconContainer: {
     width: 32,
     height: 32,
@@ -203,11 +164,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
   },
-  versionContainer: {
-    alignItems: "center",
-    padding: 20,
-  },
-  versionText: {
-    fontSize: 12,
-  }
 });

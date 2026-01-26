@@ -43,7 +43,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
 
         try {
             setLoading(true);
-            let query = supabase.from(TABLES.TASKS).select("*");
+            let query = supabase.from(TABLES.TASKS).select("*").eq("createdBy", user.id);
 
 
 

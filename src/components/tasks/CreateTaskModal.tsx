@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useTheme } from "../../context/ThemeContext";
 import { Task } from "../../types";
 
 interface CreateTaskModalProps {
@@ -31,6 +32,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
+  const { colors, isDark } = useTheme();
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat("tr-TR", {
@@ -58,28 +60,29 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Yeni Görev Ekle</Text>
+        <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.primary }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Yeni Görev Ekle</Text>
             <TouchableOpacity onPress={onClose}>
-              <Icon name="close" size={24} color="#333" />
+              <Icon name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBackground }]}
             placeholder="Görev Başlığı"
+            placeholderTextColor={colors.textSecondary}
             value={newTask.title}
             onChangeText={(text) => onTaskChange("title", text)}
           />
 
           <TouchableOpacity
-            style={styles.datePickerButton}
+            style={[styles.datePickerButton, { borderColor: colors.border, backgroundColor: colors.inputBackground }]}
             onPress={() => setShowDatePicker(true)}
           >
             <View style={styles.datePickerContent}>
-              <Icon name="calendar-today" size={20} color="#007AFF" />
-              <Text style={styles.datePickerText}>
+              <Icon name="calendar-today" size={20} color={colors.primary} />
+              <Text style={[styles.datePickerText, { color: colors.text }]}>
                 {newTask.createdAt
                   ? formatDate(newTask.createdAt)
                   : "Tarih Seçin"}
@@ -91,12 +94,12 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             <>
               {Platform.OS === "ios" && (
                 <View style={styles.iosPickerContainer}>
-                  <View style={styles.iosPickerHeader}>
+                  <View style={[styles.iosPickerHeader, { borderBottomColor: colors.border }]}>
                     <TouchableOpacity
                       onPress={() => setShowDatePicker(false)}
                       style={styles.iosPickerDoneButton}
                     >
-                      <Text style={styles.iosPickerDoneText}>Tamam</Text>
+                      <Text style={[styles.iosPickerDoneText, { color: colors.primary }]}>Tamam</Text>
                     </TouchableOpacity>
                   </View>
                   <DateTimePicker
@@ -104,6 +107,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                     mode="date"
                     display="spinner"
                     onChange={handleDateChange}
+                    themeVariant={isDark ? "dark" : "light"}
                   />
                 </View>
               )}
@@ -119,17 +123,17 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
           )}
 
           <TouchableOpacity
-            style={styles.checkboxContainer}
+            style={[styles.checkboxContainer, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
             onPress={() => setIsRecurring(!isRecurring)}
           >
-            <View style={[styles.checkbox, isRecurring && styles.checkboxChecked]}>
+            <View style={[styles.checkbox, { backgroundColor: isRecurring ? colors.primary : colors.card, borderColor: isRecurring ? colors.primary : colors.border }]}>
               {isRecurring && <Icon name="check" size={16} color="#fff" />}
             </View>
-            <Text style={styles.checkboxLabel}>Sürekli Görev (Her gün tekrarlar)</Text>
+            <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sürekli Görev (Her gün tekrarlar)</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.submitButton}
+            style={[styles.submitButton, { backgroundColor: colors.primary }]}
             onPress={() => {
               if (isRecurring && onCreateRecurringTask) {
                 onCreateRecurringTask(newTask.title);

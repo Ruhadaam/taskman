@@ -15,6 +15,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 
 type RootStackParamList = {
@@ -41,6 +42,7 @@ const ResetPasswordScreen = ({ onComplete }: ResetPasswordScreenProps) => {
     const [loading, setLoading] = useState(false);
     const navigation = useNavigation<ResetPasswordScreenNavigationProp>();
     const { updatePassword, signOut } = useAuth();
+    const { colors, isDark } = useTheme();
 
     const handleResetPassword = async () => {
         // Validasyonlar
@@ -95,7 +97,7 @@ const ResetPasswordScreen = ({ onComplete }: ResetPasswordScreenProps) => {
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
                 style={styles.container}
@@ -105,25 +107,25 @@ const ResetPasswordScreen = ({ onComplete }: ResetPasswordScreenProps) => {
                     keyboardShouldPersistTaps="handled"
                 >
                     <View style={styles.headerContainer}>
-                        <View style={styles.iconBackground}>
-                            <Icon name="lock-reset" size={60} color="#007AFF" />
+                        <View style={[styles.iconBackground, { backgroundColor: isDark ? colors.card : "#fff" }]}>
+                            <Icon name="lock-reset" size={60} color={colors.primary} />
                         </View>
-                        <Text style={styles.title}>Şifre Sıfırlama</Text>
-                        <Text style={styles.subtitle}>
+                        <Text style={[styles.title, { color: colors.text }]}>Şifre Sıfırlama</Text>
+                        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                             Lütfen yeni şifrenizi girin
                         </Text>
                     </View>
 
                     <View style={styles.formContainer}>
-                        <View style={styles.inputContainer}>
-                            <Icon name="lock" size={24} color="#666" style={styles.inputIcon} />
+                        <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+                            <Icon name="lock" size={24} color={colors.textSecondary} style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { color: colors.text }]}
                                 placeholder="Yeni Şifre"
                                 value={password}
                                 onChangeText={setPassword}
                                 secureTextEntry={!isPasswordVisible}
-                                placeholderTextColor="#999"
+                                placeholderTextColor={colors.textSecondary}
                             />
                             <TouchableOpacity
                                 onPress={() => setIsPasswordVisible(!isPasswordVisible)}
@@ -132,20 +134,20 @@ const ResetPasswordScreen = ({ onComplete }: ResetPasswordScreenProps) => {
                                 <Icon
                                     name={isPasswordVisible ? "visibility" : "visibility-off"}
                                     size={24}
-                                    color="#666"
+                                    color={colors.textSecondary}
                                 />
                             </TouchableOpacity>
                         </View>
 
-                        <View style={styles.inputContainer}>
-                            <Icon name="lock" size={24} color="#666" style={styles.inputIcon} />
+                        <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+                            <Icon name="lock" size={24} color={colors.textSecondary} style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { color: colors.text }]}
                                 placeholder="Yeni Şifre (Tekrar)"
                                 value={confirmPassword}
                                 onChangeText={setConfirmPassword}
                                 secureTextEntry={!isConfirmPasswordVisible}
-                                placeholderTextColor="#999"
+                                placeholderTextColor={colors.textSecondary}
                             />
                             <TouchableOpacity
                                 onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}
@@ -154,7 +156,7 @@ const ResetPasswordScreen = ({ onComplete }: ResetPasswordScreenProps) => {
                                 <Icon
                                     name={isConfirmPasswordVisible ? "visibility" : "visibility-off"}
                                     size={24}
-                                    color="#666"
+                                    color={colors.textSecondary}
                                 />
                             </TouchableOpacity>
                         </View>

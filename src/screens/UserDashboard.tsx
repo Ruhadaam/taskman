@@ -21,6 +21,7 @@ if (
 }
 import { useAuth } from "../context/AuthContext";
 import { useTasks } from "../context/TaskContext";
+import { useTheme } from "../context/ThemeContext";
 import { Task, RecurringTask } from "../types";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -41,6 +42,7 @@ type DisplayTask = (Task & { isRecurringTask?: false }) | (RecurringTask & { isR
 export default function UserDashboard() {
   const { user } = useAuth();
   const navigation = useNavigation<NavigationProp>();
+  const { colors, isDark } = useTheme();
   // Use Global Task Context
   const { tasks, recurringTasks, addTask, addRecurringTask, completeRecurringTask, updateTaskStatus, updateTask, deleteTask } = useTasks();
 
@@ -249,11 +251,11 @@ export default function UserDashboard() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={styles.headerLeft}>
           <View style={styles.welcomeContainer}>
-            <Text style={styles.userName}>Bugün</Text>
+            <Text style={[styles.userName, { color: colors.text }]}>Bugün</Text>
           </View>
         </View>
         <View style={styles.headerRight}>
@@ -269,6 +271,7 @@ export default function UserDashboard() {
             onPress={() => !item.isRecurringTask && handleTaskPress(item as Task)}
             isCompleting={item.id ? completingTaskIds.has(item.id) : false}
             borderLeftColor={item.isRecurringTask ? '#9C27B0' : getBorderColor(item.status)}
+            themeColors={colors}
           />
         )}
         keyExtractor={(item) => (item.isRecurringTask ? `recurring-${item.id}` : item.id) || ""}

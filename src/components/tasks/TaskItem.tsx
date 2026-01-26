@@ -11,6 +11,7 @@ interface TaskItemProps {
     borderLeftColor: string;
     date?: string;
     rightContent?: React.ReactNode;
+    themeColors?: any;
 }
 
 const TaskItem: React.FC<TaskItemProps> = ({
@@ -21,17 +22,24 @@ const TaskItem: React.FC<TaskItemProps> = ({
     borderLeftColor,
     date,
     rightContent,
+    themeColors,
 }) => {
     const isCompletedOrCompleting =
         item.status === "completed" || isCompleting;
 
+    const bg = themeColors ? themeColors.card : "#fff";
+    const text = themeColors ? themeColors.text : "#333";
+    const border = themeColors ? themeColors.border : "#eee";
+    const subText = themeColors ? themeColors.textSecondary : "#666";
+
     return (
-        <View style={styles.todoItem}>
+        <View style={[styles.todoItem, { backgroundColor: bg, borderColor: border }]}>
             <View style={[styles.indicator, { backgroundColor: borderLeftColor }]} />
             <TouchableOpacity
                 style={[
                     styles.checkbox,
                     isCompletedOrCompleting && styles.checkboxChecked,
+                    { borderColor: isCompletedOrCompleting ? "#34C759" : subText, backgroundColor: isCompletedOrCompleting ? "#34C759" : bg }
                 ]}
                 onPress={() => onToggle(item)}
             >
@@ -46,14 +54,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 <Text
                     style={[
                         styles.todoTitle,
-                        isCompletedOrCompleting && styles.todoTitleCompleted,
+                        { color: text },
+                        isCompletedOrCompleting && [styles.todoTitleCompleted, { color: subText }],
                     ]}
                     numberOfLines={1}
                 >
                     {item.title}
                 </Text>
                 {date && (
-                    <Text style={styles.dateText}>
+                    <Text style={[styles.dateText, { color: subText }]}>
                         {date}
                     </Text>
                 )}

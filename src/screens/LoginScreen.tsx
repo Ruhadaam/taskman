@@ -17,6 +17,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 
 type RootStackParamList = {
@@ -39,6 +40,7 @@ const LoginScreen = () => {
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const navigation = useNavigation<LoginScreenNavigationProp>();
   const { signIn, resetPasswordRequest } = useAuth();
+  const { colors, isDark } = useTheme();
 
   const handleLogin = async () => {
     try {
@@ -89,7 +91,7 @@ const LoginScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.container}
@@ -99,45 +101,45 @@ const LoginScreen = () => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.logoContainer}>
-            <View style={styles.logoBackground}>
+            <View style={[styles.logoBackground, { backgroundColor: isDark ? colors.card : "#fff" }]}>
               <Image
                 source={require("../../assets/icon.png")}
                 style={styles.logo}
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.title}>Vzbel</Text>
-            <Text style={styles.subtitle}>Görev Yönetim Sistemi</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Vzbel</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Görev Yönetim Sistemi</Text>
           </View>
 
           <View style={styles.formContainer}>
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground, shadowColor: isDark ? "#000" : "#000" }]}>
               <Icon
                 name="email"
                 size={24}
-                color="#666"
+                color={colors.textSecondary}
                 style={styles.inputIcon}
               />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="Email"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                placeholderTextColor="#999"
+                placeholderTextColor={colors.textSecondary}
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <Icon name="lock" size={24} color="#666" style={styles.inputIcon} />
+            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+              <Icon name="lock" size={24} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="Şifre"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!isPasswordVisible}
-                placeholderTextColor="#999"
+                placeholderTextColor={colors.textSecondary}
               />
               <TouchableOpacity
                 onPress={() => setIsPasswordVisible(!isPasswordVisible)}
@@ -146,7 +148,7 @@ const LoginScreen = () => {
                 <Icon
                   name={isPasswordVisible ? "visibility" : "visibility-off"}
                   size={24}
-                  color="#666"
+                  color={colors.textSecondary}
                 />
               </TouchableOpacity>
             </View>
@@ -181,42 +183,42 @@ const LoginScreen = () => {
         onRequestClose={() => setForgotPasswordModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Icon name="lock-reset" size={40} color="#007AFF" />
-              <Text style={styles.modalTitle}>Şifremi Unuttum</Text>
-              <Text style={styles.modalSubtitle}>
+              <Icon name="lock-reset" size={40} color={colors.primary} />
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Şifremi Unuttum</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
                 Email adresinizi girin, size şifre sıfırlama linki gönderelim.
               </Text>
             </View>
 
-            <View style={styles.modalInputContainer}>
+            <View style={[styles.modalInputContainer, { backgroundColor: colors.inputBackground }]}>
               <Icon
                 name="email"
                 size={24}
-                color="#666"
+                color={colors.textSecondary}
                 style={styles.inputIcon}
               />
               <TextInput
-                style={styles.modalInput}
+                style={[styles.modalInput, { color: colors.text }]}
                 placeholder="Email adresiniz"
                 value={forgotPasswordEmail}
                 onChangeText={setForgotPasswordEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                placeholderTextColor="#999"
+                placeholderTextColor={colors.textSecondary}
               />
             </View>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalCancelButton}
+                style={[styles.modalCancelButton, { backgroundColor: isDark ? "#333" : "#f0f0f0" }]}
                 onPress={() => {
                   setForgotPasswordModalVisible(false);
                   setForgotPasswordEmail("");
                 }}
               >
-                <Text style={styles.modalCancelText}>İptal</Text>
+                <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>İptal</Text>
               </TouchableOpacity>
 
               <TouchableOpacity

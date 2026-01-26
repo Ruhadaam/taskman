@@ -5,13 +5,15 @@ import { MaterialIcons as Icon } from "@expo/vector-icons";
 import UserDashboard from "../screens/UserDashboard";
 import UpcomingTasksScreen from "../screens/UpcomingTasksScreen";
 import OverdueTasksScreen from "../screens/OverdueTasksScreen";
-import ProfileScreen from "../screens/ProfileScreen";
+import ProfileStack from "./ProfileStack";
 import { useTasks } from "../context/TaskContext";
+import { useTheme } from "../context/ThemeContext";
 
 const Tab = createBottomTabNavigator();
 
 export default function UserTabNavigator() {
     const { tasks, getTurkeyDayRange } = useTasks();
+    const { colors } = useTheme();
 
     const getOverdueCount = () => {
         const range = getTurkeyDayRange();
@@ -29,11 +31,13 @@ export default function UserTabNavigator() {
         <Tab.Navigator
             screenOptions={{
                 headerShown: false,
-                tabBarActiveTintColor: "#007AFF",
-                tabBarInactiveTintColor: "gray",
+                tabBarActiveTintColor: colors.primary,
+                tabBarInactiveTintColor: colors.textSecondary,
                 tabBarStyle: {
                     paddingBottom: 1,
                     height: 65,
+                    backgroundColor: colors.card,
+                    borderTopColor: colors.border,
                 },
                 tabBarLabelStyle: {
                     fontSize: 10,
@@ -77,7 +81,7 @@ export default function UserTabNavigator() {
             />
             <Tab.Screen
                 name="Profile"
-                component={ProfileScreen}
+                component={ProfileStack}
                 options={{
                     tabBarLabel: "Profil",
                     tabBarIcon: ({ color, size }) => (
