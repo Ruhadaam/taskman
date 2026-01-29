@@ -15,6 +15,10 @@ interface TaskContextType {
     updateTaskStatus: (taskId: string, status: Task["status"]) => Promise<void>;
     updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
     deleteTask: (taskId: string) => Promise<void>;
+    updateRecurringTask: (taskId: string, title: string) => Promise<void>;
+    deleteRecurringTask: (taskId: string) => Promise<void>;
+    convertTaskToRecurring: (taskId: string, title: string) => Promise<void>;
+    convertRecurringToTask: (taskId: string, title: string, date?: Date) => Promise<void>;
     getTurkeyDayRange: () => { start: string; end: string };
 }
 
@@ -282,9 +286,151 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     }, [loadRecurringTasks]);
 
+    const updateRecurringTask = React.useCallback(async (taskId: string, title: string) => {
+        setRecurringTasks(prev => prev.map(t =>
+            t.id === taskId ? { ...t, title } : t
+        ));
+
+        try {
+            const { error } = await supabase
+                .from(TABLES.RECURRING_TASKS)
+                .update({ title })
+                .eq("id", taskId);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error("Sürekli görev güncelleme hatası:", error);
+            loadRecurringTasks();
+        }
+    }, [loadRecurringTasks]);
+
+    const deleteRecurringTask = React.useCallback(async (taskId: string) => {
+        setRecurringTasks(prev => prev.filter(t => t.id !== taskId));
+
+        try {
+            const { error } = await supabase
+                .from(TABLES.RECURRING_TASKS)
+                .delete()
+                .eq("id", taskId);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error("Sürekli görev silme hatası:", error);
+            loadRecurringTasks();
+        }
+    }, [loadRecurringTasks]);
+
+    const convertTaskToRecurring = React.useCallback(async (taskId: string, title: string) => {
+        // 1. Remove from tasks (optimistic)
+        const taskToDelete = tasks.find(t => t.id === taskId);
+        setTasks(prev => prev.filter(t => t.id !== taskId));
+
+        // 2. Add to recurring tasks (optimistic)
+        const tempId = "temp-rec-" + Math.random().toString();
+        const optimisticRecurring: RecurringTask = {
+            id: tempId,
+            title,
+            createdBy: user?.id || "",
+            createdAt: new Date(),
+        };
+        setRecurringTasks(prev => [...prev, optimisticRecurring]);
+
+        try {
+            // 3. Delete from tasks DB
+            const { error: deleteError } = await supabase
+                .from(TABLES.TASKS)
+                .delete()
+                .eq("id", taskId);
+
+            if (deleteError) throw deleteError;
+
+            // 4. Add to recurring tasks DB
+            const { data, error: insertError } = await supabase
+                .from(TABLES.RECURRING_TASKS)
+                .insert([{
+                    title,
+                    createdby: user?.id,
+                }])
+                .select()
+                .single();
+
+            if (insertError) throw insertError;
+
+            // 5. Update optimistic recurring task with real data
+            const newRecurringTask: RecurringTask = {
+                ...data,
+                lastCompletedAt: undefined,
+                createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+            };
+            setRecurringTasks(prev => prev.map(t => t.id === tempId ? newRecurringTask : t));
+
+        } catch (error) {
+            console.error("Task conversion error:", error);
+            // Revert changes on error would be ideal, but for now strict reloading is safer
+            loadTasks();
+            loadRecurringTasks();
+            Alert.alert("Hata", "Görev dönüştürülürken bir hata oluştu");
+        }
+    }, [tasks, user?.id, loadTasks, loadRecurringTasks]);
+
+    const convertRecurringToTask = React.useCallback(async (taskId: string, title: string, date?: Date) => {
+        // 1. Remove from recurring tasks (optimistic)
+        setRecurringTasks(prev => prev.filter(t => t.id !== taskId));
+
+        // 2. Add to tasks (optimistic)
+        const tempId = "temp-task-" + Math.random().toString();
+        const selectedDate = date || new Date();
+        const optimisticTask: Task = {
+            id: tempId,
+            title,
+            status: "waiting",
+            createdAt: selectedDate,
+            createdBy: user?.id || "",
+        };
+        setTasks(prev => [...prev, optimisticTask]);
+
+        try {
+            // 3. Delete from recurring tasks DB
+            const { error: deleteError } = await supabase
+                .from(TABLES.RECURRING_TASKS)
+                .delete()
+                .eq("id", taskId);
+
+            if (deleteError) throw deleteError;
+
+            // 4. Add to tasks DB
+            const { data, error: insertError } = await supabase
+                .from(TABLES.TASKS)
+                .insert([{
+                    title,
+                    status: "waiting",
+                    createdAt: selectedDate.toISOString(),
+                    createdBy: user?.id,
+                }])
+                .select()
+                .single();
+
+            if (insertError) throw insertError;
+
+            // 5. Update optimistic task with real data
+            const createdTask = {
+                ...data,
+                createdAt: selectedDate,
+                createdBy: data.createdby || data.createdBy || ""
+            };
+            setTasks(prev => prev.map(t => t.id === tempId ? createdTask : t));
+
+        } catch (error) {
+            console.error("Recurring conversion error:", error);
+            loadTasks();
+            loadRecurringTasks();
+            Alert.alert("Hata", "Görev dönüştürülürken bir hata oluştu");
+        }
+    }, [user?.id, loadTasks, loadRecurringTasks]);
+
     const value = React.useMemo(() => ({
-        tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, updateTaskStatus, updateTask, deleteTask, getTurkeyDayRange
-    }), [tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, updateTaskStatus, updateTask, deleteTask]);
+        tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask, getTurkeyDayRange
+    }), [tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask]);
 
     return (
         <TaskContext.Provider value={value}>

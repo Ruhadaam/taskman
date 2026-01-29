@@ -27,6 +27,7 @@ import { MaterialIcons as Icon } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import TaskDetailModal from "../components/tasks/TaskDetailModal";
+import RecurringTaskDetailModal from "../components/tasks/RecurringTaskDetailModal";
 import CreateTaskModal from "../components/tasks/CreateTaskModal";
 import TaskItem from "../components/tasks/TaskItem";
 
@@ -44,11 +45,13 @@ export default function UserDashboard() {
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark } = useTheme();
   // Use Global Task Context
-  const { tasks, recurringTasks, addTask, addRecurringTask, completeRecurringTask, updateTaskStatus, updateTask, deleteTask } = useTasks();
+  const { tasks, recurringTasks, addTask, addRecurringTask, completeRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask } = useTasks();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [recurringModalVisible, setRecurringModalVisible] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedRecurringTask, setSelectedRecurringTask] = useState<RecurringTask | null>(null);
   const [newTask, setNewTask] = useState<Task>({
     title: "",
     status: "waiting",
@@ -232,6 +235,28 @@ export default function UserDashboard() {
     }
   };
 
+  const handleConvertToRecurring = async (title: string) => {
+    if (!selectedTask?.id) return;
+    try {
+      await convertTaskToRecurring(selectedTask.id, title);
+      setDetailModalVisible(false);
+    } catch (error) {
+      console.error("Dönüştürme hatası:", error);
+      Alert.alert("Hata", "Görev dönüştürülürken bir hata oluştu");
+    }
+  };
+
+  const handleConvertToNormal = async (title: string) => {
+    if (!selectedRecurringTask?.id) return;
+    try {
+      await convertRecurringToTask(selectedRecurringTask.id, title);
+      setRecurringModalVisible(false);
+    } catch (error) {
+      console.error("Dönüştürme hatası:", error);
+      Alert.alert("Hata", "Görev dönüştürülürken bir hata oluştu");
+    }
+  };
+
   const getBorderColor = (status: Task["status"]) => {
     switch (status) {
       case "completed":
@@ -248,6 +273,32 @@ export default function UserDashboard() {
   const handleTaskPress = (task: Task) => {
     setSelectedTask(task);
     setDetailModalVisible(true);
+  };
+
+  const handleRecurringTaskPress = (task: RecurringTask) => {
+    setSelectedRecurringTask(task);
+    setRecurringModalVisible(true);
+  };
+
+  const handleSaveRecurringTask = async (title: string) => {
+    if (!selectedRecurringTask?.id) return;
+    try {
+      await updateRecurringTask(selectedRecurringTask.id, title);
+      setRecurringModalVisible(false);
+    } catch (error) {
+      console.error("Sürekli görev güncellenirken hata:", error);
+      Alert.alert("Hata", "Sürekli görev güncellenirken bir hata oluştu");
+    }
+  };
+
+  const handleDeleteRecurringTask = async () => {
+    if (!selectedRecurringTask?.id) return;
+    try {
+      await deleteRecurringTask(selectedRecurringTask.id);
+      setRecurringModalVisible(false);
+    } catch (error) {
+      console.error("Sürekli görev silinirken hata:", error);
+    }
   };
 
   return (
@@ -268,7 +319,7 @@ export default function UserDashboard() {
           <TaskItem
             item={item as Task}
             onToggle={() => toggleTaskDone(item)}
-            onPress={() => !item.isRecurringTask && handleTaskPress(item as Task)}
+            onPress={() => item.isRecurringTask ? handleRecurringTaskPress(item as unknown as RecurringTask) : handleTaskPress(item as Task)}
             isCompleting={item.id ? completingTaskIds.has(item.id) : false}
             borderLeftColor={item.isRecurringTask ? '#9C27B0' : getBorderColor(item.status)}
             themeColors={colors}
@@ -308,7 +359,19 @@ export default function UserDashboard() {
         selectedTask={selectedTask}
         onStatusChange={handleStatusChange}
         onDeleteTask={handleDeleteTask}
+
         onSave={handleSaveTask}
+        onConvertToRecurring={handleConvertToRecurring}
+      />
+
+      <RecurringTaskDetailModal
+        visible={recurringModalVisible}
+        onClose={() => setRecurringModalVisible(false)}
+        selectedTask={selectedRecurringTask}
+        onDeleteTask={handleDeleteRecurringTask}
+
+        onSave={handleSaveRecurringTask}
+        onConvertToNormal={handleConvertToNormal}
       />
     </View>
   );

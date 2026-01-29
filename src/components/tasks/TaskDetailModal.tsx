@@ -14,6 +14,7 @@ interface TaskDetailModalProps {
   ) => void;
   onDeleteTask: () => void;
   onSave: (title: string, date: Date) => void;
+  onConvertToRecurring?: (title: string) => void;
 }
 
 const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
@@ -22,18 +23,21 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   selectedTask,
   onDeleteTask,
   onSave,
+  onConvertToRecurring
 }) => {
   if (!selectedTask) return null;
 
   const [editTitle, setEditTitle] = useState(selectedTask.title);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(false);
   const { colors, isDark } = useTheme();
 
   useEffect(() => {
     if (selectedTask) {
       setEditTitle(selectedTask.title);
       setSelectedDate(selectedTask.createdAt ? new Date(selectedTask.createdAt) : new Date());
+      setIsRecurring(false);
     }
   }, [selectedTask]);
 
@@ -150,10 +154,28 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           </View>
 
           <TouchableOpacity
-            style={[styles.submitButton, { backgroundColor: colors.primary }]}
-            onPress={() => onSave(editTitle, selectedDate)}
+            style={styles.checkboxContainer}
+            onPress={() => setIsRecurring(!isRecurring)}
           >
-            <Text style={styles.submitButtonText}>Kaydet</Text>
+            <View style={[styles.checkbox, isRecurring && styles.checkboxChecked]}>
+              {isRecurring && <Icon name="check" size={16} color="#fff" />}
+            </View>
+            <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sürekli Görev</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.submitButton, { backgroundColor: isRecurring ? '#9C27B0' : colors.primary }]}
+            onPress={() => {
+              if (isRecurring && onConvertToRecurring) {
+                onConvertToRecurring(editTitle);
+              } else {
+                onSave(editTitle, selectedDate);
+              }
+            }}
+          >
+            <Text style={styles.submitButtonText}>
+              {isRecurring ? "Sürekli Görev Olarak Kaydet" : "Kaydet"}
+            </Text>
           </TouchableOpacity>
 
         </View>
@@ -255,6 +277,28 @@ const styles = StyleSheet.create({
     color: "#007AFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  checkboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#ccc",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  checkboxChecked: {
+    backgroundColor: "#9C27B0",
+    borderColor: "#9C27B0",
+  },
+  checkboxLabel: {
+    fontSize: 16,
   },
 });
 
