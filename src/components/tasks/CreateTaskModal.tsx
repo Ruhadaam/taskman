@@ -129,7 +129,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             <View style={[styles.checkbox, { backgroundColor: isRecurring ? colors.primary : colors.card, borderColor: isRecurring ? colors.primary : colors.border }]}>
               {isRecurring && <Icon name="check" size={16} color="#fff" />}
             </View>
-            <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sürekli Görev (Her gün tekrarlar)</Text>
+            <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Görev (Her gün tekrarlar)</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

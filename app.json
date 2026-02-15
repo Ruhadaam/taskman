@@ -5,10 +5,16 @@
     "scheme": "vzbel",
     "version": "1.0.2",
     "orientation": "portrait",
-    "icon": "./assets/app-icon.png",
-    "userInterfaceStyle": "white",
+    "icon": "./assets/V_black.png",
+    "userInterfaceStyle": "automatic",
     "splash": {
-      "backgroundColor": "#ffffff"
+      "image": "./assets/V_black.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff",
+      "dark": {
+        "image": "./assets/V_white.png",
+        "backgroundColor": "#1A1A1A"
+      }
     },
     "assetBundlePatterns": [
       "**/*"
@@ -17,7 +23,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/app-icon.png",
+          "icon": "./assets/V_black.png",
           "color": "#1A1A1A",
           "mode": "preview"
         }
@@ -49,14 +55,15 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/V_black.png",
+        "monochromeImage": "./assets/V_white.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.vzbelapp",
       "versionCode": 2
     },
     "web": {
-      "favicon": "./assets/app-icon.png"
+      "favicon": "./assets/V_black.png"
     },
     "extra": {
       "eas": {

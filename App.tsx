@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { TaskProvider } from "./src/context/TaskContext";
 import { supabase } from "./src/config/lib";
 import * as Linking from 'expo-linking';
+import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 
 // Ekranlar
@@ -25,6 +26,9 @@ type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
 
 const AppContent = () => {
   const { colors, isDark } = useTheme();
@@ -140,6 +144,12 @@ const RootNavigator = () => {
       },
     },
   };
+
+  useEffect(() => {
+    if (!loading) {
+      SplashScreen.hideAsync();
+    }
+  }, [loading]);
 
   if (loading) {
     return (

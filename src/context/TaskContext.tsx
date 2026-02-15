@@ -99,7 +99,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
 
             setRecurringTasks(recurringList);
         } catch (error) {
-            console.error("Sürekli görevler yüklenirken hata:", error);
+            console.error("Sabit görevler yüklenirken hata:", error);
         }
     }, [user]);
 
@@ -260,8 +260,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
 
             setRecurringTasks(prev => [...prev, newRecurringTask]);
         } catch (error) {
-            console.error("Sürekli görev ekleme hatası:", error);
-            Alert.alert("Hata", "Sürekli görev eklenirken bir hata oluştu");
+            console.error("Sabit görev ekleme hatası:", error);
+            Alert.alert("Hata", "Sabit görev eklenirken bir hata oluştu");
         }
     }, [user]);
 
@@ -281,7 +281,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
 
             if (error) throw error;
         } catch (error) {
-            console.error("Sürekli görev tamamlama hatası:", error);
+            console.error("Sabit görev tamamlama hatası:", error);
             loadRecurringTasks();
         }
     }, [loadRecurringTasks]);
@@ -299,7 +299,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
 
             if (error) throw error;
         } catch (error) {
-            console.error("Sürekli görev güncelleme hatası:", error);
+            console.error("Sabit görev güncelleme hatası:", error);
             loadRecurringTasks();
         }
     }, [loadRecurringTasks]);
@@ -315,7 +315,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
 
             if (error) throw error;
         } catch (error) {
-            console.error("Sürekli görev silme hatası:", error);
+            console.error("Sabit görev silme hatası:", error);
             loadRecurringTasks();
         }
     }, [loadRecurringTasks]);

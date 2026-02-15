@@ -286,8 +286,8 @@ export default function UserDashboard() {
       await updateRecurringTask(selectedRecurringTask.id, title);
       setRecurringModalVisible(false);
     } catch (error) {
-      console.error("Sürekli görev güncellenirken hata:", error);
-      Alert.alert("Hata", "Sürekli görev güncellenirken bir hata oluştu");
+      console.error("Sabit görev güncellenirken hata:", error);
+      Alert.alert("Hata", "Sabit görev güncellenirken bir hata oluştu");
     }
   };
 
@@ -297,7 +297,7 @@ export default function UserDashboard() {
       await deleteRecurringTask(selectedRecurringTask.id);
       setRecurringModalVisible(false);
     } catch (error) {
-      console.error("Sürekli görev silinirken hata:", error);
+      console.error("Sabit görev silinirken hata:", error);
     }
   };
 

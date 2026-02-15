@@ -7,7 +7,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<User | null>;
-  signUp: (email: string, password: string) => Promise<User | null>;
+  signUp: (email: string, password: string, name: string, surname: string) => Promise<User | null>;
   signOut: () => Promise<void>;
   setUser: (user: User | null) => void;
   resetPasswordRequest: (email: string) => Promise<void>;
@@ -206,7 +206,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (
     email: string,
-    password: string
+    password: string,
+    name: string,
+    surname: string
   ): Promise<User | null> => {
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -217,15 +219,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (error) throw error;
       if (!data.user) return null;
 
-      const generatedName = email.split("@")[0];
-
       // Create profile for new user
       const { data: profile, error: profileError } = await supabase
         .from(TABLES.PROFILES)
         .insert({
           id: data.user.id,
           email: email,
-          name: generatedName,
+          name: name,
+          surname: surname,
         })
         .select()
         .single();

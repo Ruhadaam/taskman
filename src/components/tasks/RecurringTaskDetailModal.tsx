@@ -44,7 +44,7 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
             <View style={styles.modalContainer}>
                 <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: '#9C27B0' }]}>
                     <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-                        <Text style={[styles.modalTitle, { color: colors.text }]}>Sürekli Görevi Düzenle</Text>
+                        <Text style={[styles.modalTitle, { color: colors.text }]}>Sabit Görevi Düzenle</Text>
                         <View style={styles.headerIcons}>
                             <TouchableOpacity
                                 onPress={() => {
@@ -78,7 +78,7 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
                         <View style={[styles.checkbox, isRecurring && styles.checkboxChecked]}>
                             {isRecurring && <Icon name="check" size={16} color="#fff" />}
                         </View>
-                        <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sürekli Görev</Text>
+                        <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Görev</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity

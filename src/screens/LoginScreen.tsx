@@ -103,7 +103,7 @@ const LoginScreen = () => {
           <View style={styles.logoContainer}>
             <View style={[styles.logoBackground, { backgroundColor: isDark ? colors.card : "#fff" }]}>
               <Image
-                source={require("../../assets/icon.png")}
+                source={isDark ? require("../../assets/V_black.png") : require("../../assets/V_white.png")}
                 style={styles.logo}
                 resizeMode="contain"
               />
@@ -274,10 +274,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    overflow: "hidden",
   },
   logo: {
     width: 80,
     height: 80,
+    transform: [{ scale: 1.5 }],
   },
   title: {
     fontSize: 32,

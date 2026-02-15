@@ -160,7 +160,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             <View style={[styles.checkbox, isRecurring && styles.checkboxChecked]}>
               {isRecurring && <Icon name="check" size={16} color="#fff" />}
             </View>
-            <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sürekli Görev</Text>
+            <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Görev</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -174,7 +174,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             }}
           >
             <Text style={styles.submitButtonText}>
-              {isRecurring ? "Sürekli Görev Olarak Kaydet" : "Kaydet"}
+              {isRecurring ? "Sabit Görev Olarak Kaydet" : "Kaydet"}
             </Text>
           </TouchableOpacity>
 

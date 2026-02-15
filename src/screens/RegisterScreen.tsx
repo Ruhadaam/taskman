@@ -31,6 +31,8 @@ type RegisterScreenNavigationProp = StackNavigationProp<
 >;
 
 const RegisterScreen = () => {
+    const [name, setName] = useState("");
+    const [surname, setSurname] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -42,7 +44,7 @@ const RegisterScreen = () => {
     const { colors, isDark } = useTheme();
 
     const handleRegister = async () => {
-        if (!email || !password || !confirmPassword) {
+        if (!name || !surname || !email || !password || !confirmPassword) {
             Alert.alert("Hata", "Lütfen tüm alanları doldurun.");
             return;
         }
@@ -54,15 +56,16 @@ const RegisterScreen = () => {
 
         try {
             setLoading(true);
-            const user = await signUp(email, password);
+            const user = await signUp(email.trim(), password, name, surname);
             if (!user) {
                 Alert.alert("Hata", "Kayıt işlemi başarısız oldu.");
                 return;
             }
             // Navigation is handled automatically by App.tsx based on user state
-        } catch (error) {
+        } catch (error: any) {
             console.log(error);
-            Alert.alert("Hata", "Kayıt işlemi sırasında bir hata oluştu.");
+            const errorMessage = error.message || "Kayıt işlemi sırasında bir hata oluştu.";
+            Alert.alert("Hata", errorMessage);
         } finally {
             setLoading(false);
         }
@@ -79,9 +82,9 @@ const RegisterScreen = () => {
                     keyboardShouldPersistTaps="handled"
                 >
                     <View style={styles.logoContainer}>
-                        <View style={[styles.logoBackground, , { backgroundColor: isDark ? colors.card : "#fff" }]}>
+                        <View style={[styles.logoBackground, { backgroundColor: isDark ? colors.card : "#fff" }]}>
                             <Image
-                                source={require("../../assets/icon.png")}
+                                source={isDark ? require("../../assets/V_black.png") : require("../../assets/V_white.png")}
                                 style={styles.logo}
                                 resizeMode="contain"
                             />
@@ -91,6 +94,40 @@ const RegisterScreen = () => {
                     </View>
 
                     <View style={styles.formContainer}>
+                        <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+                            <Icon
+                                name="person"
+                                size={24}
+                                color={colors.textSecondary}
+                                style={styles.inputIcon}
+                            />
+                            <TextInput
+                                style={[styles.input, { color: colors.text }]}
+                                placeholder="Ad"
+                                value={name}
+                                onChangeText={setName}
+                                autoCapitalize="words"
+                                placeholderTextColor={colors.textSecondary}
+                            />
+                        </View>
+
+                        <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+                            <Icon
+                                name="person-outline"
+                                size={24}
+                                color={colors.textSecondary}
+                                style={styles.inputIcon}
+                            />
+                            <TextInput
+                                style={[styles.input, { color: colors.text }]}
+                                placeholder="Soyad"
+                                value={surname}
+                                onChangeText={setSurname}
+                                autoCapitalize="words"
+                                placeholderTextColor={colors.textSecondary}
+                            />
+                        </View>
+
                         <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
                             <Icon
                                 name="email"
@@ -211,10 +248,12 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
         elevation: 5,
+        overflow: "hidden",
     },
     logo: {
         width: 80,
         height: 80,
+        transform: [{ scale: 1.5 }],
     },
     title: {
         fontSize: 32,
