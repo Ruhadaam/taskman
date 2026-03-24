@@ -164,7 +164,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
                     {
                         title: newTask.title,
                         status: "waiting",
-                        createdAt: selectedDate.toISOString(),
+                        createdAt: toTurkeyISOString(selectedDate),
                         createdBy: user.id,
                     },
                 ])
@@ -404,7 +404,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
                 .insert([{
                     title,
                     status: "waiting",
-                    createdAt: selectedDate.toISOString(),
+                    createdAt: toTurkeyISOString(selectedDate),
                     createdBy: user?.id,
                 }])
                 .select()

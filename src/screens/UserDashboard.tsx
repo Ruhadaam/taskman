@@ -332,7 +332,10 @@ export default function UserDashboard() {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => setModalVisible(true)}
+        onPress={() => {
+          setNewTask((prev) => ({ ...prev, createdAt: new Date() }));
+          setModalVisible(true);
+        }}
         activeOpacity={0.8}
       >
         <Icon name="add" size={28} color="#fff" />

@@ -8,12 +8,12 @@
     "icon": "./assets/V_black.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/V_black.png",
+      "image": "./assets/V_white.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff",
       "dark": {
-        "image": "./assets/V_white.png",
-        "backgroundColor": "#1A1A1A"
+        "image": "./assets/V_black.png",
+        "backgroundColor": "#000000"
       }
     },
     "assetBundlePatterns": [
@@ -37,13 +37,33 @@
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
-            "buildToolsVersion": "35.0.0"
+            "buildToolsVersion": "35.0.0",
+            "kotlinVersion": "2.0.21"
           },
           "ios": {
             "deploymentTarget": "15.1"
           }
         }
-      ]
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#ffffff",
+          "image": "./assets/V_white.png",
+          "imageWidth": 200,
+          "android": {
+            "iconBackgroundColor": "#ffffff"
+          },
+          "dark": {
+            "backgroundColor": "#000000",
+            "image": "./assets/V_black.png",
+            "android": {
+              "iconBackgroundColor": "#000000"
+            }
+          }
+        }
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "ios": {
       "supportsTablet": false,

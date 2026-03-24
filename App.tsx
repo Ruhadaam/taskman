@@ -147,7 +147,10 @@ const RootNavigator = () => {
 
   useEffect(() => {
     if (!loading) {
-      SplashScreen.hideAsync();
+      const timer = setTimeout(() => {
+        SplashScreen.hideAsync();
+      }, 1500);
+      return () => clearTimeout(timer);
     }
   }, [loading]);
 
