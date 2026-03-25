@@ -12,6 +12,7 @@ interface TaskContextType {
     addTask: (task: Omit<Task, "id" | "createdAt">) => Promise<void>;
     addRecurringTask: (title: string) => Promise<void>;
     completeRecurringTask: (taskId: string) => Promise<void>;
+    uncompleteRecurringTask: (taskId: string) => Promise<void>;
     updateTaskStatus: (taskId: string, status: Task["status"]) => Promise<void>;
     updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
     deleteTask: (taskId: string) => Promise<void>;
@@ -143,6 +144,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
     const addTask = React.useCallback(async (newTask: Omit<Task, "id" | "createdAt">) => {
         if (!user?.id) return;
 
+        const activeTasksCount = tasks.filter(t => !t.isArchived).length;
+        if (activeTasksCount >= 5) {
+            Alert.alert("Hata", "En fazla 5 aktif görev ekleyebilirsiniz. Lütfen yenisini eklemek için bazı görevleri silin veya arşivleyin.");
+            return;
+        }
+
         const dateObj = (newTask as any).createdAt || new Date();
         const selectedDate = dateObj instanceof Date ? dateObj : new Date(dateObj);
 
@@ -238,6 +245,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
     const addRecurringTask = React.useCallback(async (title: string) => {
         if (!user?.id) return;
 
+        if (recurringTasks.length >= 5) {
+            Alert.alert("Hata", "En fazla 5 sabit görev ekleyebilirsiniz.");
+            return;
+        }
+
         try {
             const { data, error } = await supabase
                 .from(TABLES.RECURRING_TASKS)
@@ -276,12 +288,31 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         try {
             const { error } = await supabase
                 .from(TABLES.RECURRING_TASKS)
-                .update({ lastcompletedat: now.toISOString() })
+                .update({ lastcompletedat: toTurkeyISOString(now) })
                 .eq("id", taskId);
 
             if (error) throw error;
         } catch (error) {
             console.error("Sabit görev tamamlama hatası:", error);
+            loadRecurringTasks();
+        }
+    }, [loadRecurringTasks]);
+
+    const uncompleteRecurringTask = React.useCallback(async (taskId: string) => {
+        // Optimistic update
+        setRecurringTasks(prev => prev.map(t =>
+            t.id === taskId ? { ...t, lastCompletedAt: undefined } : t
+        ));
+
+        try {
+            const { error } = await supabase
+                .from(TABLES.RECURRING_TASKS)
+                .update({ lastcompletedat: null })
+                .eq("id", taskId);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error("Sabit görev geri alma hatası:", error);
             loadRecurringTasks();
         }
     }, [loadRecurringTasks]);
@@ -321,6 +352,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [loadRecurringTasks]);
 
     const convertTaskToRecurring = React.useCallback(async (taskId: string, title: string) => {
+        if (recurringTasks.length >= 5) {
+            Alert.alert("Hata", "Sürekli görevleriniz zaten 5 adet. Dönüştürmek için önce birini silmelisiniz.");
+            return;
+        }
+
         // 1. Remove from tasks (optimistic)
         const taskToDelete = tasks.find(t => t.id === taskId);
         setTasks(prev => prev.filter(t => t.id !== taskId));
@@ -374,6 +410,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [tasks, user?.id, loadTasks, loadRecurringTasks]);
 
     const convertRecurringToTask = React.useCallback(async (taskId: string, title: string, date?: Date) => {
+        const activeTasksCount = tasks.filter(t => !t.isArchived).length;
+        if (activeTasksCount >= 5) {
+            Alert.alert("Hata", "Normal görevleriniz zaten 5 adet. Dönüştürmek için önce birini silmeli veya arşivlemelisiniz.");
+            return;
+        }
+
         // 1. Remove from recurring tasks (optimistic)
         setRecurringTasks(prev => prev.filter(t => t.id !== taskId));
 
@@ -429,8 +471,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [user?.id, loadTasks, loadRecurringTasks]);
 
     const value = React.useMemo(() => ({
-        tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask, getTurkeyDayRange
-    }), [tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask]);
+        tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, uncompleteRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask, getTurkeyDayRange
+    }), [tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, uncompleteRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask]);
 
     return (
         <TaskContext.Provider value={value}>

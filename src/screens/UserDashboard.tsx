@@ -38,14 +38,14 @@ type RootStackParamList = {
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 // Combined type for both regular and recurring tasks
-type DisplayTask = (Task & { isRecurringTask?: false }) | (RecurringTask & { isRecurringTask: true; status: 'waiting' });
+type DisplayTask = (Task & { isRecurringTask?: false }) | (RecurringTask & { isRecurringTask: true; status: 'waiting' | 'completed' });
 
 export default function UserDashboard() {
   const { user } = useAuth();
   const navigation = useNavigation<NavigationProp>();
   const { colors, isDark } = useTheme();
   // Use Global Task Context
-  const { tasks, recurringTasks, addTask, addRecurringTask, completeRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask } = useTasks();
+  const { tasks, recurringTasks, addTask, addRecurringTask, completeRecurringTask, uncompleteRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask } = useTasks();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -67,25 +67,34 @@ export default function UserDashboard() {
     const today = new Date();
     const todayStr = today.toDateString();
 
-    // Filter regular tasks for today
+    // Filter regular tasks for today (including completed)
     const todayTasks: DisplayTask[] = tasks.filter(task => {
       if (task.isArchived) return false;
-      if (task.status === 'completed') return false;
 
       const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
       return taskDate.toDateString() === todayStr;
     }).map(t => ({ ...t, isRecurringTask: false as const }));
 
-    // Filter recurring tasks (show if not completed today)
-    const visibleRecurring: DisplayTask[] = recurringTasks.filter(task => {
-      if (!task.lastCompletedAt) return true;
-      const completedDate = new Date(task.lastCompletedAt);
-      return completedDate.toDateString() !== todayStr;
-    }).map(t => ({ ...t, isRecurringTask: true as const, status: 'waiting' as const }));
+    // Filter recurring tasks (show with 'completed' status if done today)
+    const visibleRecurring: DisplayTask[] = recurringTasks.map(task => {
+      const isCompletedToday = task.lastCompletedAt && new Date(task.lastCompletedAt).toDateString() === todayStr;
+      return {
+        ...task,
+        isRecurringTask: true as const,
+        status: (isCompletedToday ? 'completed' : 'waiting') as 'completed' | 'waiting'
+      };
+    });
 
-    // Combine and sort by createdAt
+    // Combine and sort: pending first, then by creation time
     const combined = [...todayTasks, ...visibleRecurring];
     return combined.sort((a, b) => {
+      // 1. Status priority: 'waiting' and 'past_due' before 'completed'
+      if (a.status !== b.status) {
+        if (a.status === 'completed') return 1;
+        if (b.status === 'completed') return -1;
+      }
+
+      // 2. Secondary: createdAt
       const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return aTime - bTime;
@@ -154,6 +163,12 @@ export default function UserDashboard() {
 
     // Handle recurring tasks differently
     if (task.isRecurringTask) {
+      if (task.status === 'completed') {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        uncompleteRecurringTask(task.id!);
+        return;
+      }
+
       setCompletingTaskIds((prev) => new Set(prev).add(task.id!));
 
       setTimeout(() => {
