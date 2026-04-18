@@ -9,7 +9,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<User | null>;
   signUp: (email: string, password: string, name: string, surname: string) => Promise<User | null>;
   signOut: () => Promise<void>;
-  setUser: (user: User | null) => void;
+  setUser: (user: User | null | ((prev: User | null) => User | null)) => void;
   resetPasswordRequest: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
 }
@@ -19,6 +19,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const isTransformingRef = useRef(false);
+  const lastTransformedUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -83,16 +85,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (!isMounted) return;
 
       // Sadece sessionChecked true olduktan sonra otomatik transform yap
-      if (sessionChecked && session?.user) {
+      const shouldTransform =
+        sessionChecked &&
+        !!session?.user?.id &&
+        (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "USER_UPDATED");
+
+      if (shouldTransform) {
         console.log("AuthContext - transformSupabaseUser tetikleniyor (detached)...");
-        // Deadlock'ı önlemek için tamamen ayırıyoruz
-        setTimeout(() => {
-          if (isMounted) {
-            transformSupabaseUser(session.user).catch(err => {
-              console.error("AuthContext - Background transform error:", err);
-            });
-          }
-        }, 0);
+        const userId = session.user.id;
+
+        // Aynı kullanıcı için gereksiz tekrarları engelle
+        if (lastTransformedUserIdRef.current === userId) return;
+        if (isTransformingRef.current) return;
+
+        lastTransformedUserIdRef.current = userId;
+        isTransformingRef.current = true;
+
+        transformSupabaseUser(session.user)
+          .catch(err => {
+            console.error("AuthContext - transformSupabaseUser error:", err);
+          })
+          .finally(() => {
+            isTransformingRef.current = false;
+          });
       } else if (sessionChecked && !session && isMounted) {
         console.log("AuthContext - Oturum kapandı.");
         setUser(null);
@@ -116,7 +131,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  const transformSupabaseUser = async (
+  const transformSupabaseUser = React.useCallback(async (
     supabaseUser: any
   ): Promise<User | null> => {
     console.log("transformSupabaseUser - Başladı, id:", supabaseUser?.id);
@@ -142,7 +157,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (error.code === 'PGRST116' || error.message?.includes('single JSON object')) {
           console.log("transformSupabaseUser - Profil bulunamadı, geçici obje kuruluyor.");
           const tempUser = { id: supabaseUser.id, email: supabaseUser.email || "" } as any;
-          setUser(tempUser);
+          
+          setUser(prev => {
+            if (prev?.id === tempUser.id) return prev;
+            return tempUser;
+          });
+          
           return tempUser;
         }
 
@@ -153,7 +173,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (data) {
         console.log("transformSupabaseUser - Profil başarıyla getirildi.");
         const normalizedUser = { ...data };
-        setUser(normalizedUser);
+        
+        setUser(prev => {
+          // Deep count check is expensive, so we just check ID and a few fields
+          // or rely on the fact that if it's the same ID, it's likely the same session
+          if (prev?.id === normalizedUser.id && prev?.email === normalizedUser.email) {
+            console.log("transformSupabaseUser - Kullanıcı zaten aynı, state güncellenmedi.");
+            return prev;
+          }
+          return normalizedUser;
+        });
+
         try {
           await AsyncStorage.setItem("user", JSON.stringify(normalizedUser));
         } catch (storageError) {
@@ -167,9 +197,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error("transformSupabaseUser - Genel hata:", error);
       return null;
     }
-  };
+  }, []);
 
-  const signIn = async (
+  const signIn = React.useCallback(async (
     email: string,
     password: string
   ): Promise<User | null> => {
@@ -183,16 +213,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (!data.user) return null;
 
       const transformedUser = await transformSupabaseUser(data.user);
-      setUser(transformedUser);
-
       return transformedUser;
     } catch (error) {
       console.error("Giriş hatası:", error);
       throw error;
     }
-  };
+  }, [transformSupabaseUser]);
 
-  const signOut = async () => {
+  const signOut = React.useCallback(async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
@@ -202,9 +230,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error("Çıkış hatası:", error);
       throw error;
     }
-  };
+  }, []);
 
-  const signUp = async (
+  const signUp = React.useCallback(async (
     email: string,
     password: string,
     name: string,
@@ -244,9 +272,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error("Kayıt hatası:", error);
       throw error;
     }
-  };
+  }, []);
 
-  const resetPasswordRequest = async (email: string): Promise<void> => {
+  const resetPasswordRequest = React.useCallback(async (email: string): Promise<void> => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: 'vzbel://forget-password',
@@ -256,9 +284,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error("Şifre sıfırlama hatası:", error);
       throw error;
     }
-  };
+  }, []);
 
-  const updatePassword = async (newPassword: string): Promise<void> => {
+  const updatePassword = React.useCallback(async (newPassword: string): Promise<void> => {
     console.log("updatePassword - Başladı");
 
     try {
@@ -294,9 +322,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error("updatePassword - Yakalanan Hata:", error.message || error);
       throw error;
     }
-  };
+  }, []);
 
-  const value = {
+  const value = React.useMemo(() => ({
     user,
     loading,
     signIn,
@@ -305,7 +333,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser,
     resetPasswordRequest,
     updatePassword,
-  };
+  }), [user, loading, signIn, signUp, signOut, setUser, resetPasswordRequest, updatePassword]);
 
   return (
     <AuthContext.Provider value={value}>

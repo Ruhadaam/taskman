@@ -1,5 +1,5 @@
-import React, { memo } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import React, { memo, useRef, useEffect } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from "react-native";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import { Task } from "../../types";
 
@@ -27,13 +27,77 @@ const TaskItem: React.FC<TaskItemProps> = ({
     const isCompletedOrCompleting =
         item.status === "completed" || isCompleting;
 
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+    // Giriş Animasyonu: Bileşen yüklendiğinde hafifçe belirsin
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 400,
+                easing: Easing.out(Easing.quad),
+                useNativeDriver: true,
+            }),
+            Animated.spring(scaleAnim, {
+                toValue: 1,
+                friction: 8,
+                tension: 40,
+                useNativeDriver: true,
+            })
+        ]).start();
+    }, []);
+
+    // Tamamlanırken (fadeOut) veya Geri Alınırken (fadeIn) görsel efektler
+    useEffect(() => {
+        if (isCompleting) {
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 0.5,
+                    duration: 300,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(scaleAnim, {
+                    toValue: 0.98,
+                    duration: 300,
+                    useNativeDriver: true,
+                })
+            ]).start();
+        } else {
+            // Tamamlandığında veya normal durumda stabil kalsın
+            const targetFade = item.status === 'completed' ? 0.7 : 1;
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: targetFade,
+                    duration: 300,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(scaleAnim, {
+                    toValue: 1,
+                    duration: 300,
+                    useNativeDriver: true,
+                })
+            ]).start();
+        }
+    }, [isCompleting, item.status]);
+
     const bg = themeColors ? themeColors.card : "#fff";
     const text = themeColors ? themeColors.text : "#333";
     const border = themeColors ? themeColors.border : "#eee";
     const subText = themeColors ? themeColors.textSecondary : "#666";
 
     return (
-        <View style={[styles.todoItem, { backgroundColor: bg, borderColor: border }]}>
+        <Animated.View 
+            style={[
+                styles.todoItem, 
+                { 
+                    backgroundColor: bg, 
+                    borderColor: border,
+                    opacity: fadeAnim,
+                    transform: [{ scale: scaleAnim }]
+                }
+            ]}
+        >
             <View style={[styles.indicator, { backgroundColor: borderLeftColor }]} />
             <TouchableOpacity
                 style={[
@@ -72,7 +136,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                     {rightContent}
                 </View>
             )}
-        </View>
+        </Animated.View>
     );
 };
 
@@ -83,12 +147,17 @@ const styles = StyleSheet.create({
         backgroundColor: "#fff",
         borderRadius: 10,
         padding: 12,
-        paddingLeft: 17, // Added padding to account for indicator width + spacing
+        paddingLeft: 17, 
         marginBottom: 12,
         borderWidth: 1,
         borderColor: "#eee",
         overflow: "hidden",
         position: "relative",
+        elevation: 1, // Add subtle shadow for premium feel
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
     },
     indicator: {
         position: "absolute",

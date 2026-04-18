@@ -25,10 +25,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   onSave,
   onConvertToRecurring
 }) => {
-  if (!selectedTask) return null;
-
-  const [editTitle, setEditTitle] = useState(selectedTask.title);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  // selectedTask null iken de component "mounted" kalabildiği için,
+  // hook sırasını bozmamak adına güvenli default state kullanıyoruz.
+  const [editTitle, setEditTitle] = useState<string>(selectedTask?.title ?? "");
+  const [selectedDate, setSelectedDate] = useState<Date>(
+    selectedTask?.createdAt ? new Date(selectedTask.createdAt) : new Date()
+  );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const { colors, isDark } = useTheme();
@@ -70,6 +72,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
   };
 
+  if (!selectedTask) return null;
+
   return (
     <Modal
       animationType="slide"
@@ -99,13 +103,19 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             </View>
           </View>
 
-          <TextInput
-            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBackground }]}
-            placeholder="Görev Başlığı"
-            placeholderTextColor={colors.textSecondary}
-            value={editTitle}
-            onChangeText={setEditTitle}
-          />
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBackground }]}
+              placeholder="Görev Başlığı"
+              placeholderTextColor={colors.textSecondary}
+              value={editTitle}
+              maxLength={isRecurring ? 15 : 25}
+              onChangeText={setEditTitle}
+            />
+            <Text style={[styles.charCount, { color: colors.textSecondary }]}>
+              {editTitle.length} / {isRecurring ? 15 : 25}
+            </Text>
+          </View>
 
           <View style={styles.dateSection}>
             <TouchableOpacity
@@ -219,13 +229,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  inputContainer: {
+    position: 'relative',
+    marginBottom: 15,
+  },
   input: {
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 8,
     padding: 10,
-    marginBottom: 15,
+    paddingRight: 60, // Space for counter
     fontSize: 16,
+  },
+  charCount: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    fontSize: 12,
   },
   dateSection: {
     marginBottom: 15, // Adjusted to match CreateTaskModal logic (wrapper might not be needed but helps structure)

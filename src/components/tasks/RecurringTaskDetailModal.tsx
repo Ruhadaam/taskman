@@ -21,9 +21,8 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
     onSave,
     onConvertToNormal
 }) => {
-    if (!selectedTask) return null;
-
-    const [editTitle, setEditTitle] = useState(selectedTask.title);
+    // selectedTask null iken de component mounted kalabildiği için hook sırası bozulmasın.
+    const [editTitle, setEditTitle] = useState<string>(selectedTask?.title ?? "");
     const [isRecurring, setIsRecurring] = useState(true);
     const { colors } = useTheme();
 
@@ -33,6 +32,8 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
             setIsRecurring(true);
         }
     }, [selectedTask]);
+
+    if (!selectedTask) return null;
 
     return (
         <Modal
@@ -63,13 +64,19 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
                         </View>
                     </View>
 
-                    <TextInput
-                        style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBackground }]}
-                        placeholder="Görev Başlığı"
-                        placeholderTextColor={colors.textSecondary}
-                        value={editTitle}
-                        onChangeText={setEditTitle}
-                    />
+                    <View style={styles.inputContainer}>
+                        <TextInput
+                            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBackground }]}
+                            placeholder="Görev Başlığı"
+                            placeholderTextColor={colors.textSecondary}
+                            value={editTitle}
+                            maxLength={isRecurring ? 15 : 25}
+                            onChangeText={setEditTitle}
+                        />
+                        <Text style={[styles.charCount, { color: colors.textSecondary }]}>
+                            {editTitle.length} / {isRecurring ? 15 : 25}
+                        </Text>
+                    </View>
 
                     <TouchableOpacity
                         style={styles.checkboxContainer}
@@ -137,13 +144,23 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
+    inputContainer: {
+        position: 'relative',
+        marginBottom: 15,
+    },
     input: {
         borderWidth: 1,
         borderColor: "#ddd",
         borderRadius: 8,
         padding: 10,
-        marginBottom: 15,
+        paddingRight: 60, // Space for counter
         fontSize: 16,
+    },
+    charCount: {
+        position: 'absolute',
+        right: 10,
+        bottom: 10,
+        fontSize: 12,
     },
     submitButton: {
         backgroundColor: "#9C27B0",

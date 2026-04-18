@@ -5,20 +5,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
-  Modal,
-  TextInput,
   FlatList,
-  LayoutAnimation,
-  Platform,
-  UIManager,
 } from "react-native";
 
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthContext";
 import { useTasks } from "../context/TaskContext";
 import { useTheme } from "../context/ThemeContext";
@@ -30,6 +23,7 @@ import TaskDetailModal from "../components/tasks/TaskDetailModal";
 import RecurringTaskDetailModal from "../components/tasks/RecurringTaskDetailModal";
 import CreateTaskModal from "../components/tasks/CreateTaskModal";
 import TaskItem from "../components/tasks/TaskItem";
+import ScreenHeader from "../components/layout/ScreenHeader";
 
 type RootStackParamList = {
   LoginScreen: undefined;
@@ -38,68 +32,91 @@ type RootStackParamList = {
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 // Combined type for both regular and recurring tasks
-type DisplayTask = (Task & { isRecurringTask?: false }) | (RecurringTask & { isRecurringTask: true; status: 'waiting' | 'completed' });
+type DisplayTask =
+  | (Task & { isRecurringTask?: false })
+  | (RecurringTask & {
+      isRecurringTask: true;
+      status: "waiting" | "completed";
+    });
 
 export default function UserDashboard() {
   const { user } = useAuth();
   const navigation = useNavigation<NavigationProp>();
-  const { colors, isDark } = useTheme();
-  // Use Global Task Context
-  const { tasks, recurringTasks, addTask, addRecurringTask, completeRecurringTask, uncompleteRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask } = useTasks();
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  const {
+    tasks,
+    recurringTasks,
+    addTask,
+    addRecurringTask,
+    completeRecurringTask,
+    uncompleteRecurringTask,
+    updateTaskStatus,
+    updateTask,
+    deleteTask,
+    updateRecurringTask,
+    deleteRecurringTask,
+    convertTaskToRecurring,
+    convertRecurringToTask,
+  } = useTasks();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [recurringModalVisible, setRecurringModalVisible] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [selectedRecurringTask, setSelectedRecurringTask] = useState<RecurringTask | null>(null);
+  const [selectedRecurringTask, setSelectedRecurringTask] =
+    useState<RecurringTask | null>(null);
   const [newTask, setNewTask] = useState<Task>({
     title: "",
     status: "waiting",
     createdAt: new Date(),
     createdBy: user?.id || "",
   });
-  const [completingTaskIds, setCompletingTaskIds] = useState<Set<string>>(new Set());
+  const [completingTaskIds, setCompletingTaskIds] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Memoize filtered tasks (combining regular + recurring)
+  const { getTurkeyDateKey } = useTasks();
+
   const filteredTasks = useMemo(() => {
     if (!user?.id) return [];
 
-    const today = new Date();
-    const todayStr = today.toDateString();
+    const todayStr = getTurkeyDateKey(new Date());
 
-    // Filter regular tasks for today (including completed)
-    const todayTasks: DisplayTask[] = tasks.filter(task => {
-      if (task.isArchived) return false;
+    const todayTasks: DisplayTask[] = tasks
+      .filter((task) => {
+        if (task.isArchived) return false;
+        const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
+        return getTurkeyDateKey(taskDate) === todayStr;
+      })
+      .map((t) => ({ ...t, isRecurringTask: false as const }));
 
-      const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
-      return taskDate.toDateString() === todayStr;
-    }).map(t => ({ ...t, isRecurringTask: false as const }));
-
-    // Filter recurring tasks (show with 'completed' status if done today)
-    const visibleRecurring: DisplayTask[] = recurringTasks.map(task => {
-      const isCompletedToday = task.lastCompletedAt && new Date(task.lastCompletedAt).toDateString() === todayStr;
+    const visibleRecurring: DisplayTask[] = recurringTasks.map((task) => {
+      const isCompletedToday =
+        task.lastCompletedAt &&
+        getTurkeyDateKey(new Date(task.lastCompletedAt)) === todayStr;
       return {
         ...task,
         isRecurringTask: true as const,
-        status: (isCompletedToday ? 'completed' : 'waiting') as 'completed' | 'waiting'
+        status: (isCompletedToday ? "completed" : "waiting") as
+          | "completed"
+          | "waiting",
       };
     });
 
-    // Combine and sort: pending first, then by creation time
     const combined = [...todayTasks, ...visibleRecurring];
     return combined.sort((a, b) => {
-      // 1. Status priority: 'waiting' and 'past_due' before 'completed'
       if (a.status !== b.status) {
-        if (a.status === 'completed') return 1;
-        if (b.status === 'completed') return -1;
+        if (a.status === "completed") return 1;
+        if (b.status === "completed") return -1;
       }
-
-      // 2. Secondary: createdAt
       const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return aTime - bTime;
     });
-  }, [tasks, recurringTasks, user?.id]);
+  }, [tasks, recurringTasks, user?.id, getTurkeyDateKey]);
 
   const handleCreateTask = async () => {
     if (!newTask.title) {
@@ -107,10 +124,7 @@ export default function UserDashboard() {
       return;
     }
 
-    if (!user?.id) {
-      Alert.alert("Hata", "Kullanıcı bilgisi bulunamadı");
-      return;
-    }
+    if (!user?.id) return;
 
     try {
       await addTask({
@@ -135,7 +149,7 @@ export default function UserDashboard() {
   };
 
   const handleStatusChange = async (
-    newStatus: "waiting" | "completed" | "past_due"
+    newStatus: "waiting" | "completed" | "past_due",
   ) => {
     if (!selectedTask?.id) return;
 
@@ -151,20 +165,17 @@ export default function UserDashboard() {
   const toggleTaskDone = (task: DisplayTask) => {
     if (!task.id) return;
 
-    // Optimistic toggle logic
     if (completingTaskIds.has(task.id)) {
       setCompletingTaskIds((prev) => {
         const next = new Set(prev);
         next.delete(task.id!);
         return next;
       });
-      return; // Abort
+      return;
     }
 
-    // Handle recurring tasks differently
     if (task.isRecurringTask) {
-      if (task.status === 'completed') {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      if (task.status === "completed") {
         uncompleteRecurringTask(task.id!);
         return;
       }
@@ -174,7 +185,6 @@ export default function UserDashboard() {
       setTimeout(() => {
         setCompletingTaskIds((currentSet) => {
           if (currentSet.has(task.id!)) {
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             completeRecurringTask(task.id!);
             const next = new Set(currentSet);
             next.delete(task.id!);
@@ -182,11 +192,10 @@ export default function UserDashboard() {
           }
           return currentSet;
         });
-      }, 1000);
+      }, 400); // Synchronized with TaskItem exit animation
       return;
     }
 
-    // Regular task logic
     if (task.status === "completed") {
       updateContextTaskStatus(task as Task, "waiting");
       return;
@@ -204,14 +213,13 @@ export default function UserDashboard() {
         }
         return currentSet;
       });
-    }, 1000);
+    }, 400); // Synchronized with TaskItem exit animation
   };
 
-  const updateContextTaskStatus = async (task: Task, newStatus: Task["status"]) => {
-    if (newStatus === "completed") {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
-
+  const updateContextTaskStatus = async (
+    task: Task,
+    newStatus: Task["status"],
+  ) => {
     if (selectedTask && selectedTask.id === task.id) {
       setSelectedTask({ ...selectedTask, status: newStatus });
     }
@@ -234,15 +242,8 @@ export default function UserDashboard() {
   const handleSaveTask = async (title: string, date: Date) => {
     if (!selectedTask?.id) return;
     try {
-      await updateTask(selectedTask.id, {
-        title,
-        createdAt: date
-      });
-      setSelectedTask({
-        ...selectedTask,
-        title,
-        createdAt: date
-      });
+      await updateTask(selectedTask.id, { title, createdAt: date });
+      setSelectedTask({ ...selectedTask, title, createdAt: date });
       setDetailModalVisible(false);
     } catch (error) {
       console.error("Görev güncellenirken hata:", error);
@@ -275,13 +276,13 @@ export default function UserDashboard() {
   const getBorderColor = (status: Task["status"]) => {
     switch (status) {
       case "completed":
-        return "#34C759"; // Yeşil
+        return "#34C759";
       case "waiting":
-        return "#FFCC00"; // Sarı
+        return "#FFCC00";
       case "past_due":
-        return "#FF3B30"; // Kırmızı
+        return "#FF3B30";
       default:
-        return "#FFCC00"; // Varsayılan sarı
+        return "#FFCC00";
     }
   };
 
@@ -317,16 +318,10 @@ export default function UserDashboard() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <View style={styles.headerLeft}>
-          <View style={styles.welcomeContainer}>
-            <Text style={[styles.userName, { color: colors.text }]}>Bugün</Text>
-          </View>
-        </View>
-        <View style={styles.headerRight}>
-        </View>
-      </View>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <ScreenHeader title="Bugün" />
 
       <FlatList
         data={filteredTasks}
@@ -334,19 +329,29 @@ export default function UserDashboard() {
           <TaskItem
             item={item as Task}
             onToggle={() => toggleTaskDone(item)}
-            onPress={() => item.isRecurringTask ? handleRecurringTaskPress(item as unknown as RecurringTask) : handleTaskPress(item as Task)}
+            onPress={() =>
+              item.isRecurringTask
+                ? handleRecurringTaskPress(item as unknown as RecurringTask)
+                : handleTaskPress(item as Task)
+            }
             isCompleting={item.id ? completingTaskIds.has(item.id) : false}
-            borderLeftColor={item.isRecurringTask ? '#9C27B0' : getBorderColor(item.status)}
+            borderLeftColor={
+              item.isRecurringTask ? "#9C27B0" : getBorderColor(item.status)
+            }
             themeColors={colors}
           />
         )}
-        keyExtractor={(item) => (item.isRecurringTask ? `recurring-${item.id}` : item.id) || ""}
+        keyExtractor={(item) =>
+          (item.isRecurringTask ? `recurring-${item.id}` : item.id) ||
+          Math.random().toString()
+        }
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={false}
       />
 
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: 20 + insets.bottom }]}
         onPress={() => {
           setNewTask((prev) => ({ ...prev, createdAt: new Date() }));
           setModalVisible(true);
@@ -366,7 +371,7 @@ export default function UserDashboard() {
         onCreateTask={handleCreateTask}
         onCreateRecurringTask={(title) => {
           addRecurringTask(title);
-          setNewTask({ ...newTask, title: '' });
+          setNewTask({ ...newTask, title: "" });
           setModalVisible(false);
         }}
       />
@@ -377,7 +382,6 @@ export default function UserDashboard() {
         selectedTask={selectedTask}
         onStatusChange={handleStatusChange}
         onDeleteTask={handleDeleteTask}
-
         onSave={handleSaveTask}
         onConvertToRecurring={handleConvertToRecurring}
       />
@@ -387,115 +391,28 @@ export default function UserDashboard() {
         onClose={() => setRecurringModalVisible(false)}
         selectedTask={selectedRecurringTask}
         onDeleteTask={handleDeleteRecurringTask}
-
         onSave={handleSaveRecurringTask}
         onConvertToNormal={handleConvertToNormal}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    paddingTop: 70,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  welcomeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  welcomeText: {
-    fontSize: 16,
-    color: "#666",
-  },
-  dateText: {
-    fontSize: 32,
-    color: "#333",
-    marginBottom: 4,
   },
   userName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  adminBadge: {
-    backgroundColor: "#007AFF",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 8,
-  },
-  adminBadgeText: {
-    color: "#fff",
-    fontSize: 12,
+    fontSize: 24,
     fontWeight: "bold",
   },
-  notificationButton: {
-    position: "relative",
-    padding: 10,
-  },
-  logoutButton: {
-    padding: 10,
-  },
-  badge: {
-    position: "absolute",
-    top: 5,
-    right: 5,
-    backgroundColor: "#FF3B30",
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 5,
-  },
-  badgeText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  tasksHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  listContainer: {
     padding: 16,
-    paddingHorizontal: 20,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
-  },
-  addButton: {
-    backgroundColor: "#007AFF",
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
+    flexGrow: 1,
   },
   fab: {
     position: "absolute",
     right: 20,
-    bottom: 20,
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -507,150 +424,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 6,
-  },
-  listContainer: {
-    padding: 16,
-  },
-  todoItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 12,
-    borderTopWidth: 1,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
-    borderTopColor: "#eee",
-    borderRightColor: "#eee",
-    borderBottomColor: "#eee",
-    borderLeftWidth: 5,
-    overflow: "hidden",
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: "#ccc",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-    backgroundColor: "#fff",
-  },
-  checkboxChecked: {
-    backgroundColor: "#34C759",
-    borderColor: "#34C759",
-  },
-  todoContent: {
-    flex: 1,
-  },
-  todoTitle: {
-    fontSize: 16,
-    color: "#333",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  todoTitleCompleted: {
-    color: "#8E8E93",
-    textDecorationLine: "line-through",
-  },
-  todoMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-    backgroundColor: "#ccc",
-  },
-  todoMeta: {
-    fontSize: 12,
-    color: "#666",
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  statusText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  statusDropdown: {
-    position: "absolute",
-    right: 0,
-    top: 40,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 10,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 10,
-    zIndex: 9999,
-  },
-  statusDropdownItem: {
-    padding: 10,
-    borderRadius: 5,
-    marginBottom: 5,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 10,
-    width: "80%",
-    maxHeight: "80%",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-  },
-  input: {
-    height: 40,
-    borderColor: "gray",
-    borderWidth: 1,
-    marginBottom: 10,
-    padding: 10,
-  },
-  textArea: {
-    height: 100,
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 20,
-  },
-  button: {
-    padding: 10,
-    borderRadius: 5,
-    backgroundColor: "#007AFF",
-  },
-  cancelButton: {
-    backgroundColor: "#ddd",
-  },
-  confirmButton: {
-    backgroundColor: "#4CD964",
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "white",
   },
 });

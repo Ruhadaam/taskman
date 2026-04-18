@@ -68,13 +68,19 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <TextInput
-            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBackground }]}
-            placeholder="Görev Başlığı"
-            placeholderTextColor={colors.textSecondary}
-            value={newTask.title}
-            onChangeText={(text) => onTaskChange("title", text)}
-          />
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBackground }]}
+              placeholder="Görev Başlığı"
+              placeholderTextColor={colors.textSecondary}
+              value={newTask.title}
+              maxLength={isRecurring ? 15 : 25}
+              onChangeText={(text) => onTaskChange("title", text)}
+            />
+            <Text style={[styles.charCount, { color: colors.textSecondary }]}>
+              {newTask.title.length} / {isRecurring ? 15 : 25}
+            </Text>
+          </View>
 
           <TouchableOpacity
             style={[styles.datePickerButton, { borderColor: colors.border, backgroundColor: colors.inputBackground }]}
@@ -181,13 +187,23 @@ const styles = StyleSheet.create({
     color: "#333",
     flex: 1,
   },
+  inputContainer: {
+    position: 'relative',
+    marginBottom: 15,
+  },
   input: {
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 8,
     padding: 10,
-    marginBottom: 15,
+    paddingRight: 60, // Space for counter
     fontSize: 16,
+  },
+  charCount: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    fontSize: 12,
   },
   textArea: {
     height: 100,

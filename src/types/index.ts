@@ -16,6 +16,7 @@ export interface Task {
   createdAt: Date;
   createdBy: string;
   isArchived?: boolean; // false: Active, true: Archived
+  updatedAt?: string | Date;
 }
 
 export interface RecurringTask {

@@ -1,205 +1,306 @@
-import React, { useState, useEffect } from "react";
-import {
-    View,
-    Text,
-    StyleSheet,
-    Platform,
-    UIManager,
-} from "react-native";
+import React, { useMemo, useState, useCallback } from "react";
+import { View, Text, StyleSheet, FlatList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Agenda, AgendaSchedule } from "react-native-calendars";
-import { useAuth } from "../context/AuthContext";
+import { Calendar, LocaleConfig } from "react-native-calendars";
 import { useTasks } from "../context/TaskContext";
 import { useTheme } from "../context/ThemeContext";
 import { Task } from "../types";
-import { MaterialIcons as Icon } from "@expo/vector-icons";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import TaskItem from "../components/tasks/TaskItem";
+import TaskDetailModal from "../components/tasks/TaskDetailModal";
+import ScreenHeader from "../components/layout/ScreenHeader";
 
-if (
-    Platform.OS === "android" &&
-    UIManager.setLayoutAnimationEnabledExperimental
-) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+// Locale Config: Türkçe Ayarları
+LocaleConfig.locales["tr"] = {
+  monthNames: [
+    "Ocak",
+    "Şubat",
+    "Mart",
+    "Nisan",
+    "Mayıs",
+    "Haziran",
+    "Temmuz",
+    "Ağustos",
+    "Eylül",
+    "Ekim",
+    "Kasım",
+    "Aralık",
+  ],
+  monthNamesShort: [
+    "Oca.",
+    "Şub.",
+    "Mar.",
+    "Nis.",
+    "May.",
+    "Haz.",
+    "Tem.",
+    "Ağu.",
+    "Eyl.",
+    "Eki.",
+    "Kas.",
+    "Ara.",
+  ],
+  dayNames: [
+    "Pazar",
+    "Pazartesi",
+    "Salı",
+    "Çarşamba",
+    "Perşembe",
+    "Cuma",
+    "Cumartesi",
+  ],
+  dayNamesShort: ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"],
+  today: "Bugün",
+};
+LocaleConfig.defaultLocale = "tr";
 
-type RootStackParamList = {
-    UserTaskList: undefined;
-    LoginScreen: undefined;
+// Okunaklı tarih başlığı üretir (Örn: 30 Mart Pazartesi)
+const formatDisplayDateTR = (dateString: string) => {
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat("tr-TR", {
+    timeZone: "Europe/Istanbul",
+    day: "numeric",
+    month: "long",
+    weekday: "long",
+  }).format(date);
 };
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
 export default function UpcomingTasksScreen() {
-    const { user } = useAuth();
-    const navigation = useNavigation<NavigationProp>();
-    const { tasks } = useTasks();
-    const { colors, isDark } = useTheme();
+  const { tasks, updateTaskStatus, updateTask, deleteTask, getTurkeyDateKey } =
+    useTasks();
+  const { colors, isDark } = useTheme();
 
-    const [items, setItems] = useState<AgendaSchedule>({});
+  const today = useMemo(() => getTurkeyDateKey(new Date()), [getTurkeyDateKey]);
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [completingTaskIds, setCompletingTaskIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
 
-    useEffect(() => {
-        const newItems: AgendaSchedule = {};
+  // Takvimde işaretlenecek günleri hesapla
+  const markedDates = useMemo(() => {
+    const marked: { [key: string]: any } = {};
 
-        // Fill with tasks
-        tasks.forEach(task => {
-            if (!task.createdAt || task.isArchived) return;
-            const date = new Date(task.createdAt);
-            const dateString = date.toISOString().split('T')[0];
+    tasks
+      .filter((t) => !t.isArchived)
+      .forEach((task) => {
+        if (!task.createdAt) return;
+        const date = new Date(task.createdAt);
+        const dateKey = getTurkeyDateKey(date);
 
-            if (!newItems[dateString]) {
-                newItems[dateString] = [];
-            }
-            newItems[dateString].push({
-                ...task,
-                name: task.title,
-                height: 80, // Approximate height for agenda
-                day: dateString
-            });
+        if (!marked[dateKey]) {
+          marked[dateKey] = {
+            marked: true,
+            dotColor: colors.primary,
+          };
+        }
+      });
+
+    marked[selectedDate] = {
+      ...marked[selectedDate],
+      selected: true,
+      selectedColor: colors.primary,
+      selectedTextColor: "#ffffff",
+    };
+
+    return marked;
+  }, [tasks, selectedDate, colors.primary]);
+
+  // Seçili güne ait görevleri filtrele
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      if (!task.createdAt || task.isArchived) return false;
+      const dateKey = getTurkeyDateKey(new Date(task.createdAt));
+      return dateKey === selectedDate;
+    });
+  }, [tasks, selectedDate, getTurkeyDateKey]);
+
+  const toggleTaskDone = useCallback(
+    (task: Task) => {
+      if (!task.id) return;
+
+      if (completingTaskIds.has(task.id)) {
+        setCompletingTaskIds((prev) => {
+          const next = new Set(prev);
+          next.delete(task.id!);
+          return next;
         });
-        setItems(newItems);
-    }, [tasks]);
+        return;
+      }
 
-    const renderItem = (item: any, firstItemInDay: boolean) => {
-        const task = item as Task;
-        const isCompleted = task.status === 'completed';
+      setCompletingTaskIds((prev) => new Set(prev).add(task.id!));
 
-        return (
-            <View style={[styles.item, { backgroundColor: colors.card, borderLeftColor: colors.primary }, isCompleted && { borderLeftColor: colors.success, opacity: 0.7 }]}>
-                <View style={styles.itemContent}>
-                    <Text style={[styles.itemTitle, { color: colors.text }, isCompleted && styles.itemTextCompleted]}>{task.title}</Text>
-                </View>
-                <View style={styles.statusIndicator}>
-                    {/* Only Visual Indicator */}
-                    {isCompleted ? (
-                        <Icon name="check-circle" size={16} color={colors.success} />
-                    ) : (
-                        <Icon name="schedule" size={16} color={colors.primary} />
-                    )}
-                </View>
-            </View>
-        );
-    };
+      setTimeout(() => {
+        setCompletingTaskIds((currentSet) => {
+          if (currentSet.has(task.id!)) {
+            updateTaskStatus(task.id!, "completed");
+            const next = new Set(currentSet);
+            next.delete(task.id!);
+            return next;
+          }
+          return currentSet;
+        });
+      }, 400); // Synchronized with TaskItem Animated transition
+    },
+    [completingTaskIds, updateTaskStatus],
+  );
 
-    const renderEmptyDate = () => {
-        return (
-            <View style={styles.emptyDate}>
-                <Text style={[styles.emptyDateText, { color: colors.textSecondary }]}>Bu tarihte görev yok</Text>
-            </View>
-        );
-    };
+  const handleTaskPress = (task: Task) => {
+    setSelectedTask(task);
+    setDetailModalVisible(true);
+  };
 
-    const today = new Date().toISOString().split('T')[0];
+  const handleStatusChange = async (newStatus: "waiting" | "completed") => {
+    if (!selectedTask?.id) return;
+    try {
+      await updateTaskStatus(selectedTask.id, newStatus);
+      setSelectedTask({ ...selectedTask, status: newStatus });
+    } catch (error) {
+      console.error("Status update error:", error);
+    }
+  };
 
-    return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-            <Agenda
-                items={items}
-                selected={today}
-                renderItem={renderItem}
-                renderEmptyDate={renderEmptyDate}
-                renderEmptyData={() => {
-                    return (
-                        <View style={styles.emptyContainer}>
-                            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Yüklenecek veri yok</Text>
-                        </View>
-                    );
-                }}
-                rowHasChanged={(r1: any, r2: any) => {
-                    return r1.id !== r2.id || r1.status !== r2.status || r1.title !== r2.title;
-                }}
-                showClosingKnob={true}
-                theme={{
-                    // Agenda Theme
-                    agendaDayTextColor: colors.textSecondary,
-                    agendaDayNumColor: colors.text,
-                    agendaTodayColor: colors.primary,
-                    agendaKnobColor: colors.primary,
+  const handleDeleteTask = async () => {
+    if (!selectedTask?.id) return;
+    try {
+      await deleteTask(selectedTask.id);
+      setDetailModalVisible(false);
+    } catch (error) {
+      console.error("Delete error:", error);
+    }
+  };
 
-                    // Calendar Theme
-                    calendarBackground: colors.card,
-                    backgroundColor: colors.background,
+  const handleSaveTask = async (title: string, date: Date) => {
+    if (!selectedTask?.id) return;
+    try {
+      await updateTask(selectedTask.id, { title, createdAt: date });
+      setDetailModalVisible(false);
+    } catch (error) {
+      console.error("Save error:", error);
+    }
+  };
 
-                    dayTextColor: colors.text,
-                    monthTextColor: colors.text,
-                    textSectionTitleColor: colors.textSecondary,
-                    textDisabledColor: isDark ? '#444' : '#d9e1e8',
+  const renderItem = useCallback(
+    ({ item }: { item: Task }) => (
+      <TaskItem
+        item={item}
+        onToggle={() => toggleTaskDone(item)}
+        onPress={handleTaskPress}
+        isCompleting={item.id ? completingTaskIds.has(item.id) : false}
+        borderLeftColor={
+          item.status === "completed" ? colors.success : colors.primary
+        }
+        themeColors={colors}
+      />
+    ),
+    [colors, completingTaskIds, toggleTaskDone],
+  );
 
-                    selectedDayBackgroundColor: colors.primary,
-                    selectedDayTextColor: '#ffffff',
+  return (
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <ScreenHeader title="Takvim Planı" />
 
-                    todayTextColor: colors.primary,
-                    dotColor: colors.primary,
-                    selectedDotColor: '#ffffff',
-                }}
-            // Force refresh on mount by key if needed, or rely on 'selected' prop
-            />
-        </SafeAreaView>
-    );
+      <View
+        style={[styles.calendarContainer, { backgroundColor: colors.card }]}
+      >
+        <Calendar
+          theme={{
+            backgroundColor: colors.card,
+            calendarBackground: colors.card,
+            textSectionTitleColor: colors.textSecondary,
+            selectedDayBackgroundColor: colors.primary,
+            selectedDayTextColor: "#ffffff",
+            todayTextColor: colors.primary,
+            dayTextColor: colors.text,
+            textDisabledColor: isDark ? "#444" : "#d9e1e8",
+            dotColor: colors.primary,
+            selectedDotColor: "#ffffff",
+            arrowColor: colors.primary,
+            monthTextColor: colors.text,
+            textMonthFontWeight: "bold",
+            textDayFontSize: 16,
+            textMonthFontSize: 18,
+            textDayHeaderFontSize: 14,
+          }}
+          onDayPress={(day) => setSelectedDate(day.dateString)}
+          markedDates={markedDates}
+          monthFormat={"MMMM yyyy"}
+          firstDay={1}
+        />
+      </View>
+
+      <View style={[styles.listHeader, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.listHeaderTitle, { color: colors.textSecondary }]}>
+          {formatDisplayDateTR(selectedDate)}
+        </Text>
+      </View>
+
+      <FlatList
+        data={filteredTasks}
+        keyExtractor={(item) => item.id || Math.random().toString()}
+        renderItem={renderItem}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              Planlanmış görev yok
+            </Text>
+          </View>
+        }
+        contentContainerStyle={styles.listContent}
+        removeClippedSubviews={false}
+      />
+
+      <TaskDetailModal
+        visible={detailModalVisible}
+        onClose={() => setDetailModalVisible(false)}
+        selectedTask={selectedTask}
+        onStatusChange={handleStatusChange}
+        onDeleteTask={handleDeleteTask}
+        onSave={handleSaveTask}
+      />
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#fff",
-
-    },
-    item: {
-        backgroundColor: "white",
-        flex: 1,
-        borderRadius: 8,
-        padding: 12,
-        marginRight: 10,
-        marginTop: 17,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        elevation: 2,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        borderLeftWidth: 4,
-        borderLeftColor: '#007AFF',
-    },
-    itemCompleted: {
-        opacity: 0.7,
-        borderLeftColor: '#34C759',
-    },
-    itemContent: {
-        flex: 1,
-        marginRight: 10,
-    },
-    itemTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
-    },
-    itemTextCompleted: {
-        textDecorationLine: 'line-through',
-        color: '#999',
-    },
-    statusIndicator: {
-        padding: 0,
-    },
-    emptyDate: {
-        height: 15,
-        flex: 1,
-        paddingTop: 30,
-        alignItems: 'center',
-    },
-    emptyDateText: {
-        color: '#ccc',
-        fontSize: 12,
-    },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 50,
-    },
-    emptyText: {
-        fontSize: 16,
-        color: '#888',
-    }
+  container: {
+    flex: 1,
+  },
+  calendarContainer: {
+    paddingBottom: 10,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  listHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 0.5,
+  },
+  listHeaderTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    paddingTop: 10,
+    flexGrow: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 40,
+    opacity: 0.6,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
 });

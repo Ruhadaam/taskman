@@ -56,7 +56,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             ? systemScheme === "dark"
             : themePreference === "dark";
 
-    const colors = {
+    const colors = React.useMemo(() => ({
         background: isDark ? "#121212" : "#f5f5f5",
         text: isDark ? "#ffffff" : "#333333",
         textSecondary: isDark ? "#aaaaaa" : "#666666",
@@ -66,10 +66,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         primary: "#007AFF",
         danger: "#FF3B30",
         success: "#34C759",
-    };
+    }), [isDark]);
+
+    const value = React.useMemo(() => ({
+        themePreference,
+        setThemePreference,
+        isDark,
+        colors
+    }), [themePreference, setThemePreference, isDark, colors]);
 
     return (
-        <ThemeContext.Provider value={{ themePreference, setThemePreference, isDark, colors }}>
+        <ThemeContext.Provider value={value}>
             {children}
         </ThemeContext.Provider>
     );
