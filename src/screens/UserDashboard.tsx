@@ -78,12 +78,13 @@ export default function UserDashboard() {
   );
 
   // Memoize filtered tasks (combining regular + recurring)
-  const { getTurkeyDateKey } = useTasks();
+  const { getTurkeyDateKey, getTurkeyDayOfWeek } = useTasks();
 
   const filteredTasks = useMemo(() => {
     if (!user?.id) return [];
 
     const todayStr = getTurkeyDateKey(new Date());
+    const todayDayOfWeek = getTurkeyDayOfWeek(new Date());
 
     const todayTasks: DisplayTask[] = tasks
       .filter((task) => {
@@ -93,18 +94,27 @@ export default function UserDashboard() {
       })
       .map((t) => ({ ...t, isRecurringTask: false as const }));
 
-    const visibleRecurring: DisplayTask[] = recurringTasks.map((task) => {
-      const isCompletedToday =
-        task.lastCompletedAt &&
-        getTurkeyDateKey(new Date(task.lastCompletedAt)) === todayStr;
-      return {
-        ...task,
-        isRecurringTask: true as const,
-        status: (isCompletedToday ? "completed" : "waiting") as
-          | "completed"
-          | "waiting",
-      };
-    });
+    const visibleRecurring: DisplayTask[] = recurringTasks
+      .filter((task) => {
+        // Eğer gün kısıtlaması yoksa her gün göster
+        if (!task.daysOfWeek || task.daysOfWeek.length === 0) return true;
+        
+        // Veritabanından string veya number gelebildiği için hepsini sayıya çevirip kontrol ediyoruz
+        const taskDays = task.daysOfWeek.map(d => Number(d));
+        return taskDays.includes(todayDayOfWeek);
+      })
+      .map((task) => {
+        const isCompletedToday =
+          task.lastCompletedAt &&
+          getTurkeyDateKey(new Date(task.lastCompletedAt)) === todayStr;
+        return {
+          ...task,
+          isRecurringTask: true as const,
+          status: (isCompletedToday ? "completed" : "waiting") as
+            | "completed"
+            | "waiting",
+        };
+      });
 
     const combined = [...todayTasks, ...visibleRecurring];
     return combined.sort((a, b) => {
@@ -116,7 +126,7 @@ export default function UserDashboard() {
       const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return aTime - bTime;
     });
-  }, [tasks, recurringTasks, user?.id, getTurkeyDateKey]);
+  }, [tasks, recurringTasks, user?.id, getTurkeyDateKey, getTurkeyDayOfWeek]);
 
   const handleCreateTask = async () => {
     if (!newTask.title) {
@@ -251,10 +261,10 @@ export default function UserDashboard() {
     }
   };
 
-  const handleConvertToRecurring = async (title: string) => {
+  const handleConvertToRecurring = async (title: string, daysOfWeek?: number[]) => {
     if (!selectedTask?.id) return;
     try {
-      await convertTaskToRecurring(selectedTask.id, title);
+      await convertTaskToRecurring(selectedTask.id, title, daysOfWeek);
       setDetailModalVisible(false);
     } catch (error) {
       console.error("Dönüştürme hatası:", error);
@@ -296,10 +306,10 @@ export default function UserDashboard() {
     setRecurringModalVisible(true);
   };
 
-  const handleSaveRecurringTask = async (title: string) => {
+  const handleSaveRecurringTask = async (title: string, daysOfWeek?: number[]) => {
     if (!selectedRecurringTask?.id) return;
     try {
-      await updateRecurringTask(selectedRecurringTask.id, title);
+      await updateRecurringTask(selectedRecurringTask.id, title, daysOfWeek);
       setRecurringModalVisible(false);
     } catch (error) {
       console.error("Sabit görev güncellenirken hata:", error);
@@ -341,10 +351,7 @@ export default function UserDashboard() {
             themeColors={colors}
           />
         )}
-        keyExtractor={(item) =>
-          (item.isRecurringTask ? `recurring-${item.id}` : item.id) ||
-          Math.random().toString()
-        }
+        keyExtractor={(item) => item.clientId || item.id || Math.random().toString()}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         removeClippedSubviews={false}
@@ -369,8 +376,8 @@ export default function UserDashboard() {
           setNewTask({ ...newTask, [field]: value })
         }
         onCreateTask={handleCreateTask}
-        onCreateRecurringTask={(title) => {
-          addRecurringTask(title);
+        onCreateRecurringTask={(title, daysOfWeek) => {
+          addRecurringTask(title, daysOfWeek);
           setNewTask({ ...newTask, title: "" });
           setModalVisible(false);
         }}

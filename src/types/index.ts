@@ -17,6 +17,7 @@ export interface Task {
   createdBy: string;
   isArchived?: boolean; // false: Active, true: Archived
   updatedAt?: string | Date;
+  clientId?: string;
 }
 
 export interface RecurringTask {
@@ -25,4 +26,6 @@ export interface RecurringTask {
   createdBy: string;
   lastCompletedAt?: Date;
   createdAt?: Date;
+  daysOfWeek?: number[];
+  clientId?: string;
 }

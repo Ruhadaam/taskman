@@ -14,17 +14,18 @@ interface TaskContextType {
     loading: boolean;
     loadTasks: () => Promise<void>;
     addTask: (task: Omit<Task, "id" | "createdAt">) => Promise<void>;
-    addRecurringTask: (title: string) => Promise<void>;
+    addRecurringTask: (title: string, daysOfWeek?: number[]) => Promise<void>;
     completeRecurringTask: (taskId: string) => Promise<void>;
     uncompleteRecurringTask: (taskId: string) => Promise<void>;
     updateTaskStatus: (taskId: string, status: Task["status"]) => Promise<void>;
     updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
     deleteTask: (taskId: string) => Promise<void>;
-    updateRecurringTask: (taskId: string, title: string) => Promise<void>;
+    updateRecurringTask: (taskId: string, title: string, daysOfWeek?: number[]) => Promise<void>;
     deleteRecurringTask: (taskId: string) => Promise<void>;
-    convertTaskToRecurring: (taskId: string, title: string) => Promise<void>;
+    convertTaskToRecurring: (taskId: string, title: string, daysOfWeek?: number[]) => Promise<void>;
     convertRecurringToTask: (taskId: string, title: string, date?: Date) => Promise<void>;
     getTurkeyDateKey: (date: Date) => string;
+    getTurkeyDayOfWeek: (date: Date) => number;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -34,18 +35,34 @@ const toTurkeyISOString = (date: Date) => {
 };
 
 const getTurkeyDateKey = (date: Date) => {
-    const parts = new Intl.DateTimeFormat("tr-TR", {
+    const turkeyTimeStr = date.toLocaleString("en-US", {
         timeZone: "Europe/Istanbul",
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
-    }).formatToParts(date);
+    });
+    // turkeyTimeStr format: "MM/DD/YYYY"
+    const [mm, dd, yyyy] = turkeyTimeStr.split('/');
+    return `${yyyy}-${mm}-${dd}`;
+};
 
-    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-    const yyyy = get("year");
-    const MM = get("month");
-    const dd = get("day");
-    return `${yyyy}-${MM}-${dd}`;
+const getTurkeyDayOfWeek = (date: Date) => {
+    // Türkiye saatine göre tarihi al (M/D/YYYY formatında)
+    const turkeyDateStr = date.toLocaleString("en-US", {
+        timeZone: "Europe/Istanbul",
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+    });
+    
+    // M/D/YYYY parçalarına ayır
+    const [m, d, y] = turkeyDateStr.split('/').map(Number);
+    
+    // Bu tarih bileşenleriyle yeni bir tarih oluştur (Cihazın yerel saatinden bağımsız gün değerini verir)
+    const turkeyDate = new Date(y, m - 1, d);
+    
+    // 0: Pazar, 1: Pazartesi ... 6: Cumartesi
+    return turkeyDate.getDay();
 };
 
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -92,6 +109,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
                 ...task,
                 lastCompletedAt: task.lastcompletedat ? new Date(task.lastcompletedat) : undefined,
                 createdAt: task.createdat ? new Date(task.createdat) : undefined,
+                daysOfWeek: task.daysofweek || undefined,
             })) || [];
             setRecurringTasks(recurringList);
         } catch (error) {
@@ -118,23 +136,23 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
             return;
         }
 
-        const todayKey = getTurkeyDateKey(new Date());
-        const activeTasksCount = tasks.filter(t =>
-            !t.isArchived &&
-            t.status !== "completed" &&
-            t.createdAt instanceof Date &&
-            getTurkeyDateKey(t.createdAt) === todayKey
-        ).length;
-
-        if (activeTasksCount >= 5) {
-            Alert.alert("Hata", "En fazla 5 aktif görev ekleyebilirsiniz.");
-            return;
-        }
-
         const dateObj = (newTask as any).createdAt || new Date();
         const selectedDate = dateObj instanceof Date ? dateObj : new Date(dateObj);
-        const tempId = Math.random().toString();
-        const optimisticTask: Task = { ...newTask, id: tempId, createdAt: selectedDate, status: 'waiting', createdBy: user.id };
+        const selectedDateKey = getTurkeyDateKey(selectedDate);
+        
+        const activeTasksOnSelectedDate = tasks.filter(t => 
+            !t.isArchived && 
+            t.status !== "completed" && 
+            t.createdAt && 
+            getTurkeyDateKey(new Date(t.createdAt)) === selectedDateKey
+        ).length;
+        
+        if (activeTasksOnSelectedDate >= 5) {
+            Alert.alert("Hata", "Seçilen gün için en fazla 5 aktif görev ekleyebilirsiniz. Lütfen önce bazılarını tamamlayın veya silin.");
+            return;
+        }
+        const clientId = "c-" + Math.random().toString();
+        const optimisticTask: Task = { ...newTask, id: clientId, clientId, createdAt: selectedDate, status: 'waiting', createdBy: user.id };
         setTasks(prev => [...prev, optimisticTask]);
 
         try {
@@ -142,10 +160,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
                 title: newTask.title, status: "waiting", createdAt: toTurkeyISOString(selectedDate), createdBy: user.id
             }]).select().single();
             if (error) throw error;
-            setTasks(prev => prev.map(t => t.id === tempId ? { ...data, createdAt: selectedDate, createdBy: data.createdby || data.createdBy || "" } : t));
+            // Keep clientId for stable React keys
+            setTasks(prev => prev.map(t => t.clientId === clientId ? { ...data, createdAt: selectedDate, createdBy: data.createdBy || "" } : t));
         } catch (error) {
             console.error("Görev ekleme hatası:", error);
-            setTasks(prev => prev.filter(t => t.id !== tempId));
+            setTasks(prev => prev.filter(t => t.clientId !== clientId));
         }
     }, [user?.id, tasks]);
 
@@ -194,21 +213,33 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     }, [loadTasks]);
 
-    const addRecurringTask = React.useCallback(async (title: string) => {
+    const addRecurringTask = React.useCallback(async (title: string, daysOfWeek?: number[]) => {
         if (!user?.id) return;
         if (title.length > 15) {
             Alert.alert("Hata", "Sabit görev başlığı en fazla 15 karakter olabilir.");
             return;
         }
         if (recurringTasks.length >= 5) {
-            Alert.alert("Hata", "En fazla 5 sabit görev ekleyebilirsiniz.");
+            Alert.alert("Hata", "Toplamda en fazla 5 sabit görev tanımlayabilirsiniz.");
             return;
         }
         try {
+            const clientId = "rc-" + Math.random().toString();
             const trNow = new Date();
-            const { data, error } = await supabase.from(TABLES.RECURRING_TASKS).insert([{ title, createdby: user.id, createdat: toTurkeyISOString(trNow) }]).select().single();
+            const { data, error } = await supabase.from(TABLES.RECURRING_TASKS).insert([{ 
+                title, 
+                createdby: user.id, 
+                createdat: toTurkeyISOString(trNow),
+                daysofweek: daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : null
+            }]).select().single();
             if (error) throw error;
-            setRecurringTasks(prev => [...prev, { ...data, lastCompletedAt: undefined, createdAt: data.createdat ? new Date(data.createdat) : new Date() }]);
+            setRecurringTasks(prev => [...prev, { 
+                ...data, 
+                clientId,
+                lastCompletedAt: undefined, 
+                createdAt: data.createdat ? new Date(data.createdat) : new Date(),
+                daysOfWeek: data.daysofweek || undefined
+            }]);
         } catch (error) {
             console.error("Sabit görev ekleme hatası:", error);
         }
@@ -237,14 +268,17 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     }, [loadRecurringTasks]);
 
-    const updateRecurringTask = React.useCallback(async (taskId: string, title: string) => {
+    const updateRecurringTask = React.useCallback(async (taskId: string, title: string, daysOfWeek?: number[]) => {
         if (title.length > 15) {
             Alert.alert("Hata", "Sabit görev başlığı en fazla 15 karakter olabilir.");
             return;
         }
-        setRecurringTasks(prev => prev.map(t => t.id === taskId ? { ...t, title } : t));
+        setRecurringTasks(prev => prev.map(t => t.id === taskId ? { ...t, title, daysOfWeek } : t));
         try {
-            const { error } = await supabase.from(TABLES.RECURRING_TASKS).update({ title }).eq("id", taskId);
+            const { error } = await supabase.from(TABLES.RECURRING_TASKS).update({ 
+                title,
+                daysofweek: daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : null
+            }).eq("id", taskId);
             if (error) throw error;
         } catch (error) {
             console.error("Sabit görev güncelleme hatası:", error);
@@ -263,7 +297,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     }, [loadRecurringTasks]);
 
-    const convertTaskToRecurring = React.useCallback(async (taskId: string, title: string) => {
+    const convertTaskToRecurring = React.useCallback(async (taskId: string, title: string, daysOfWeek?: number[]) => {
         if (title.length > 15) {
             Alert.alert("Hata", "Sabit görev başlığı en fazla 15 karakter olabilir.");
             return;
@@ -272,20 +306,23 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
             Alert.alert("Hata", "Sürekli görevleriniz zaten 5 adet.");
             return;
         }
-        setTasks(prev => prev.filter(t => t.id !== taskId));
-        const tempId = "temp-rec-" + Math.random().toString();
-        const trNow = new Date();
-        setRecurringTasks(prev => [...prev, { id: tempId, title, createdBy: user?.id || "", createdAt: trNow }]);
         try {
-            await supabase.from(TABLES.TASKS).delete().eq("id", taskId);
-            const { data, error } = await supabase.from(TABLES.RECURRING_TASKS).insert([{ title, createdby: user?.id, createdat: toTurkeyISOString(trNow) }]).select().single();
-            if (error) throw error;
-            setRecurringTasks(prev => prev.map(t => t.id === tempId ? { ...data, lastCompletedAt: undefined, createdAt: data.createdat ? new Date(data.createdat) : new Date() } : t));
-        } catch (error) {
+            const trNow = new Date();
+            const { error: insertError } = await supabase.from(TABLES.RECURRING_TASKS).insert([{ 
+                title, 
+                createdby: user?.id, 
+                createdat: toTurkeyISOString(trNow),
+                daysofweek: daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : null
+            }]);
+            if (insertError) throw insertError;
+            const { error: deleteError } = await supabase.from(TABLES.TASKS).delete().eq("id", taskId);
+            if (deleteError) throw deleteError;
             loadTasks();
             loadRecurringTasks();
+        } catch (error) {
+            console.error("Dönüştürme hatası:", error);
         }
-    }, [tasks, recurringTasks.length, user?.id, loadTasks, loadRecurringTasks]);
+    }, [recurringTasks.length, user?.id, loadTasks, loadRecurringTasks]);
 
     const convertRecurringToTask = React.useCallback(async (taskId: string, title: string, date?: Date) => {
         if (title.length > 25) {
@@ -306,7 +343,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
             await supabase.from(TABLES.RECURRING_TASKS).delete().eq("id", taskId);
             const { data, error } = await supabase.from(TABLES.TASKS).insert([{ title, status: "waiting", createdAt: toTurkeyISOString(selectedDate), createdBy: user?.id }]).select().single();
             if (error) throw error;
-            setTasks(prev => prev.map(t => t.id === tempId ? { ...data, createdAt: selectedDate, createdBy: data.createdby || data.createdBy || "" } : t));
+            setTasks(prev => prev.map(t => t.id === tempId ? { ...data, createdAt: selectedDate, createdBy: data.createdBy || "" } : t));
         } catch (error) {
             loadTasks();
             loadRecurringTasks();
@@ -314,8 +351,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [tasks, user?.id, loadTasks, loadRecurringTasks]);
 
     const value = React.useMemo(() => ({
-        tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, uncompleteRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask, getTurkeyDateKey
-    }), [tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, uncompleteRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask, getTurkeyDateKey]);
+        tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, uncompleteRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask, getTurkeyDateKey, getTurkeyDayOfWeek
+    }), [tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, uncompleteRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask, getTurkeyDateKey, getTurkeyDayOfWeek]);
 
     return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;
 };

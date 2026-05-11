@@ -12,6 +12,7 @@ interface AuthContextType {
   setUser: (user: User | null | ((prev: User | null) => User | null)) => void;
   resetPasswordRequest: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -232,6 +233,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
+  const deleteAccount = React.useCallback(async () => {
+    try {
+      const { error } = await supabase.rpc('delete_user_completely');
+
+      if (error) {
+        console.error("Hesap silme hatası (RPC):", error);
+        throw error;
+      }
+
+      console.log('Hesap başarıyla silindi');
+      
+      // Kullanıcının oturumunu yerel olarak da temizle
+      await signOut();
+    } catch (error) {
+      console.error("Hesap silme işlemi sırasında hata oluştu:", error);
+      throw error;
+    }
+  }, [signOut]);
+
   const signUp = React.useCallback(async (
     email: string,
     password: string,
@@ -333,7 +353,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser,
     resetPasswordRequest,
     updatePassword,
-  }), [user, loading, signIn, signUp, signOut, setUser, resetPasswordRequest, updatePassword]);
+    deleteAccount,
+  }), [user, loading, signIn, signUp, signOut, setUser, resetPasswordRequest, updatePassword, deleteAccount]);
 
   return (
     <AuthContext.Provider value={value}>

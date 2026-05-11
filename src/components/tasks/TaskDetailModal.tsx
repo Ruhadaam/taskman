@@ -1,20 +1,33 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Modal, StyleSheet, TextInput, Platform } from "react-native";
+import React, { useEffect, useState, useRef } from "react";
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  Modal, 
+  StyleSheet, 
+  TextInput, 
+  Platform, 
+  Pressable, 
+  Animated, 
+  Dimensions 
+} from "react-native";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useTheme } from "../../context/ThemeContext";
 import { Task } from "../../types";
+import { isToday, format } from "date-fns";
+import { tr } from "date-fns/locale";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface TaskDetailModalProps {
   visible: boolean;
   onClose: () => void;
   selectedTask: Task | null;
-  onStatusChange: (
-    status: "waiting" | "completed"
-  ) => void;
+  onStatusChange: (status: "waiting" | "completed") => void;
   onDeleteTask: () => void;
   onSave: (title: string, date: Date) => void;
-  onConvertToRecurring?: (title: string) => void;
+  onConvertToRecurring?: (title: string, daysOfWeek?: number[]) => void;
 }
 
 const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
@@ -25,42 +38,67 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   onSave,
   onConvertToRecurring
 }) => {
-  // selectedTask null iken de component "mounted" kalabildiği için,
-  // hook sırasını bozmamak adına güvenli default state kullanıyoruz.
-  const [editTitle, setEditTitle] = useState<string>(selectedTask?.title ?? "");
-  const [selectedDate, setSelectedDate] = useState<Date>(
-    selectedTask?.createdAt ? new Date(selectedTask.createdAt) : new Date()
-  );
+  const [editTitle, setEditTitle] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const { colors, isDark } = useTheme();
 
+  const RECURRING_PURPLE = "#9C27B0";
+  const activeColor = colors.primary;
+
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const toggleAnim = useRef(new Animated.Value(0)).current;
+  const [isModalVisible, setIsModalVisible] = useState(visible);
+
   useEffect(() => {
-    if (selectedTask) {
-      setEditTitle(selectedTask.title);
-      setSelectedDate(selectedTask.createdAt ? new Date(selectedTask.createdAt) : new Date());
-      setIsRecurring(false);
-    }
-  }, [selectedTask]);
+    Animated.timing(toggleAnim, {
+      toValue: isRecurring ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [isRecurring]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "#34C759";
-      case "past_due":
-        return "#FF3B30";
-      default:
-        return "#007AFF";
-    }
-  };
+  const daysList = [
+    { id: 1, label: "P" },
+    { id: 2, label: "S" },
+    { id: 3, label: "Ç" },
+    { id: 4, label: "P" },
+    { id: 5, label: "C" },
+    { id: 6, label: "C" },
+    { id: 0, label: "P" },
+  ];
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat("tr-TR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      timeZone: "Europe/Istanbul",
-    }).format(date);
+  useEffect(() => {
+    if (visible) {
+      setIsModalVisible(true);
+      if (selectedTask) {
+        setEditTitle(selectedTask.title);
+        setSelectedDate(selectedTask.createdAt ? new Date(selectedTask.createdAt) : new Date());
+        setIsRecurring(false);
+        setSelectedDays([]);
+      }
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        friction: 8,
+        tension: 50,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: SCREEN_HEIGHT,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => {
+        setIsModalVisible(false);
+      });
+    }
+  }, [visible, selectedTask]);
+
+  const getDateLabel = (date: Date) => {
+    if (isToday(date)) return "Bugün";
+    return format(date, "dd MMMM yyyy", { locale: tr });
   };
 
   const handleDateChange = (event: any, date?: Date) => {
@@ -72,253 +110,468 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }
   };
 
-  if (!selectedTask) return null;
+  const toggleDay = (dayId: number) => {
+    setSelectedDays((prev) =>
+      prev.includes(dayId) ? prev.filter((d) => d !== dayId) : [...prev, dayId]
+    );
+  };
+
+  if (!isModalVisible && !visible) return null;
 
   return (
     <Modal
-      animationType="slide"
+      animationType="none"
       transparent={true}
-      visible={visible}
+      visible={isModalVisible}
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
-      <View style={styles.modalContainer}>
-        <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.primary }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Görevi Düzenle</Text>
+      <View style={styles.modalOverlay}>
+        <Pressable 
+          style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)' }]} 
+          onPress={onClose}
+        />
+        <Animated.View 
+          style={[
+            styles.modalContent, 
+            { 
+              backgroundColor: colors.card,
+              shadowColor: isDark ? "#000" : "#888",
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          <View style={styles.sheetHandleContainer}>
+            <View style={[styles.sheetHandle, { backgroundColor: isDark ? '#444' : colors.border }]} />
+          </View>
+          
+          <View style={[styles.modalHeader, { borderBottomColor: isDark ? '#333' : colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              {isRecurring ? 'Sabit Göreve Dönüştür' : 'Görevi Düzenle'}
+            </Text>
             <View style={styles.headerIcons}>
               <TouchableOpacity
-                onPress={() => {
-                  try {
-                    onDeleteTask();
-                  } catch (e) {
-                    console.error("Error calling onDeleteTask:", e);
-                  }
-                }}
+                onPress={onDeleteTask}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.deleteButton}
               >
-                <Icon name="delete" size={24} color={colors.danger} style={{ marginRight: 15 }} />
+                <Icon name="delete-outline" size={24} color={colors.danger} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={onClose}>
-                <Icon name="close" size={24} color={colors.text} />
+              <TouchableOpacity 
+                onPress={onClose}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Icon name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.inputContainer}>
             <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBackground }]}
+              style={[
+                styles.input, 
+                { 
+                  color: colors.text, 
+                  borderColor: isRecurring ? activeColor : colors.border, 
+                  backgroundColor: colors.inputBackground 
+                }
+              ]}
               placeholder="Görev Başlığı"
               placeholderTextColor={colors.textSecondary}
               value={editTitle}
-              maxLength={isRecurring ? 15 : 25}
+              maxLength={isRecurring ? 15 : 40}
               onChangeText={setEditTitle}
             />
             <Text style={[styles.charCount, { color: colors.textSecondary }]}>
-              {editTitle.length} / {isRecurring ? 15 : 25}
+              {editTitle.length} / {isRecurring ? 15 : 40}
             </Text>
           </View>
 
-          <View style={styles.dateSection}>
+          <Animated.View style={{
+            opacity: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+            maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [100, 0] }),
+            transform: [{
+              translateY: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -10] })
+            }],
+            overflow: 'hidden'
+          }}>
             <TouchableOpacity
-              style={[styles.datePickerButton, { borderColor: colors.border, backgroundColor: colors.inputBackground }]}
+              style={[
+                styles.datePickerButton, 
+                { 
+                  borderColor: colors.border, 
+                  backgroundColor: colors.inputBackground 
+                }
+              ]}
               onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.7}
             >
               <View style={styles.datePickerContent}>
-                <Icon name="calendar-today" size={20} color={colors.primary} />
-                <Text style={[styles.datePickerText, { color: colors.text }]}>
-                  {formatDate(selectedDate)}
-                </Text>
+                <View style={[styles.iconContainer, { backgroundColor: activeColor + '15' }]}>
+                  <Icon name="calendar-today" size={18} color={activeColor} />
+                </View>
+                <View>
+                  <Text style={[styles.labelHint, { color: colors.textSecondary }]}>Tarih</Text>
+                  <Text style={[styles.datePickerText, { color: colors.text }]}>
+                    {getDateLabel(selectedDate)}
+                  </Text>
+                </View>
               </View>
+              <Icon name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
+          </Animated.View>
 
-            {showDatePicker && (
-              <>
-                {Platform.OS === "ios" && (
-                  <View style={styles.iosPickerContainer}>
-                    <View style={[styles.iosPickerHeader, { borderBottomColor: colors.border }]}>
-                      <TouchableOpacity
-                        onPress={() => setShowDatePicker(false)}
-                        style={styles.iosPickerDoneButton}
-                      >
-                        <Text style={[styles.iosPickerDoneText, { color: colors.primary }]}>Tamam</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <DateTimePicker
-                      value={selectedDate}
-                      mode="date"
-                      display="spinner"
-                      onChange={handleDateChange}
-                      themeVariant={isDark ? "dark" : "light"}
-                    />
-                  </View>
-                )}
-                {Platform.OS === "android" && (
-                  <DateTimePicker
-                    value={selectedDate}
-                    mode="date"
-                    display="default"
-                    onChange={handleDateChange}
-                  />
-                )}
-              </>
-            )}
-          </View>
+          {showDatePicker && (
+            <Animated.View style={{
+              opacity: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+              maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }),
+              overflow: 'hidden'
+            }}>
+              <View style={[styles.iosPickerContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[styles.iosPickerHeader, { borderBottomColor: colors.border }]}>
+                  <TouchableOpacity
+                    onPress={() => setShowDatePicker(false)}
+                    style={styles.iosPickerDoneButton}
+                  >
+                    <Text style={[styles.iosPickerDoneText, { color: activeColor }]}>Tamam</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? "spinner" : "default"}
+                  onChange={handleDateChange}
+                  themeVariant={isDark ? "dark" : "light"}
+                />
+              </View>
+            </Animated.View>
+          )}
 
           <TouchableOpacity
-            style={styles.checkboxContainer}
+            style={[
+              styles.checkboxContainer, 
+              { 
+                backgroundColor: isRecurring ? activeColor + '10' : colors.inputBackground, 
+                borderColor: isRecurring ? activeColor : colors.border,
+                marginBottom: isRecurring ? 12 : 24
+              }
+            ]}
             onPress={() => setIsRecurring(!isRecurring)}
+            activeOpacity={0.8}
           >
-            <View style={[styles.checkbox, isRecurring && styles.checkboxChecked]}>
+            <View style={[
+              styles.checkbox, 
+              { 
+                backgroundColor: isRecurring ? RECURRING_PURPLE : colors.card, 
+                borderColor: isRecurring ? RECURRING_PURPLE : colors.border 
+              }
+            ]}>
               {isRecurring && <Icon name="check" size={16} color="#fff" />}
             </View>
-            <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Görev</Text>
+            <View style={styles.checkboxTextContainer}>
+              <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Göreve Dönüştür</Text>
+              <Text style={[styles.checkboxSubLabel, { color: colors.textSecondary }]}>Bu görev her gün tekrarlanacak şekilde ayarlanır</Text>
+            </View>
           </TouchableOpacity>
 
+          <Animated.View style={{
+            opacity: toggleAnim,
+            maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 200] }),
+            transform: [{
+              translateY: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] })
+            }],
+            overflow: 'hidden'
+          }}>
+            <View style={styles.daysContainer}>
+              <View style={styles.daysHeader}>
+                <Text style={[styles.daysTitle, { color: colors.textSecondary }]}>Tekrarlanacak Günler</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.everyDayChip, 
+                    { 
+                      backgroundColor: selectedDays.length === 0 ? activeColor + '20' : 'transparent',
+                      borderColor: selectedDays.length === 0 ? activeColor : isDark ? '#444' : colors.border
+                    }
+                  ]}
+                  onPress={() => setSelectedDays([])}
+                >
+                  <Text style={[styles.everyDayText, { color: selectedDays.length === 0 ? activeColor : colors.textSecondary }]}>
+                    Her Gün
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.daysRow}>
+                {daysList.map((day) => {
+                  const isSelected = selectedDays.includes(day.id);
+                  return (
+                    <TouchableOpacity
+                      key={day.id}
+                      style={[
+                        styles.dayButton,
+                        { 
+                          backgroundColor: isSelected ? activeColor : colors.inputBackground,
+                          borderColor: isSelected ? activeColor : isDark ? '#444' : colors.border
+                        }
+                      ]}
+                      onPress={() => toggleDay(day.id)}
+                    >
+                      <Text style={[styles.dayButtonText, { color: isSelected ? "#fff" : colors.text }]}>
+                        {day.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={[styles.daysHint, { color: colors.textSecondary }]}>
+                {selectedDays.length === 0 
+                  ? "Görev haftanın her günü otomatik olarak eklenir." 
+                  : "Görev sadece seçilen günlerde otomatik olarak eklenir."}
+              </Text>
+            </View>
+          </Animated.View>
+
           <TouchableOpacity
-            style={[styles.submitButton, { backgroundColor: isRecurring ? '#9C27B0' : colors.primary }]}
+            style={[
+              styles.submitButton, 
+              { 
+                backgroundColor: activeColor,
+                opacity: editTitle.trim() ? 1 : 0.6,
+                shadowColor: activeColor,
+              }
+            ]}
+            disabled={!editTitle.trim()}
             onPress={() => {
               if (isRecurring && onConvertToRecurring) {
-                onConvertToRecurring(editTitle);
+                onConvertToRecurring(editTitle, selectedDays);
               } else {
                 onSave(editTitle, selectedDate);
               }
             }}
           >
+            <Icon name={isRecurring ? "repeat" : "save"} size={20} color="#fff" style={{ marginRight: 8 }} />
             <Text style={styles.submitButtonText}>
-              {isRecurring ? "Sabit Görev Olarak Kaydet" : "Kaydet"}
+              {isRecurring ? "Sabit Görev Olarak Kaydet" : "Değişiklikleri Kaydet"}
             </Text>
           </TouchableOpacity>
-
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
+  modalOverlay: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-end",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   modalContent: {
     backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 20,
-    width: "90%",
-    maxHeight: "80%",
-    borderWidth: 2,
-    borderColor: "#007AFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    width: "100%",
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    elevation: 20,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  sheetHandleContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 5,
+    borderRadius: 2.5,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
-    paddingBottom: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: '#eee',
+    marginBottom: 24,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    flex: 1,
+    fontWeight: "700",
+    letterSpacing: -0.5,
   },
   headerIcons: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  deleteButton: {
+    marginRight: 16,
+  },
   inputContainer: {
     position: 'relative',
-    marginBottom: 15,
+    marginBottom: 20,
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 10,
-    paddingRight: 60, // Space for counter
+    borderWidth: 1.5,
+    borderRadius: 12,
+    padding: 16,
+    paddingRight: 65,
     fontSize: 16,
+    fontWeight: '500',
   },
   charCount: {
     position: 'absolute',
-    right: 10,
-    bottom: 10,
-    fontSize: 12,
-  },
-  dateSection: {
-    marginBottom: 15, // Adjusted to match CreateTaskModal logic (wrapper might not be needed but helps structure)
+    right: 12,
+    bottom: 16,
+    fontSize: 11,
+    fontWeight: '600',
   },
   datePickerButton: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 10,
-    // marginBottom: 15, // handled by dateSection or directly
-    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   datePickerContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+  },
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  labelHint: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: 2,
   },
   datePickerText: {
-    fontSize: 16,
-    color: "#333",
-  },
-  submitButton: {
-    backgroundColor: "#007AFF",
-    padding: 15,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 10,
-  },
-  submitButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 15,
+    fontWeight: "600",
   },
   iosPickerContainer: {
-    marginBottom: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+    overflow: 'hidden',
   },
   iosPickerHeader: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    paddingVertical: 10,
+    padding: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
   },
   iosPickerDoneButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 5,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
   },
   iosPickerDoneText: {
-    color: "#007AFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   checkboxContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 15,
+    marginBottom: 24,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
   },
   checkbox: {
     width: 24,
     height: 24,
-    borderRadius: 6,
+    borderRadius: 8,
     borderWidth: 2,
-    borderColor: "#ccc",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginRight: 14,
   },
-  checkboxChecked: {
-    backgroundColor: "#9C27B0",
-    borderColor: "#9C27B0",
+  checkboxTextContainer: {
+    flex: 1,
   },
   checkboxLabel: {
     fontSize: 16,
+    fontWeight: "600",
+  },
+  checkboxSubLabel: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  daysContainer: {
+    marginBottom: 24,
+    paddingHorizontal: 4,
+  },
+  daysHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  daysTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    marginLeft: 4,
+  },
+  everyDayChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  everyDayText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  daysRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  daysHint: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginLeft: 4,
+    opacity: 0.8,
+  },
+  dayButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  submitButton: {
+    padding: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: 'row',
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitButtonText: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "700",
   },
 });
 

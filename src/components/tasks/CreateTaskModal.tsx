@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,11 +7,18 @@ import {
   TextInput,
   StyleSheet,
   Platform,
+  Pressable,
+  Animated,
+  Dimensions,
 } from "react-native";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useTheme } from "../../context/ThemeContext";
 import { Task } from "../../types";
+import { isToday, format } from "date-fns";
+import { tr } from "date-fns/locale";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface CreateTaskModalProps {
   visible: boolean;
@@ -19,7 +26,7 @@ interface CreateTaskModalProps {
   newTask: Task;
   onTaskChange: (field: keyof Task, value: any) => void;
   onCreateTask: () => void;
-  onCreateRecurringTask?: (title: string) => void;
+  onCreateRecurringTask?: (title: string, daysOfWeek?: number[]) => void;
 }
 
 const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
@@ -32,15 +39,75 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const { colors, isDark } = useTheme();
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat("tr-TR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      timeZone: "Europe/Istanbul",
-    }).format(date);
+  // Dynamic color theme
+  const RECURRING_PURPLE = "#9C27B0";
+  const activeColor = colors.primary;
+
+  const daysList = [
+    { id: 1, label: "P" },
+    { id: 2, label: "S" },
+    { id: 3, label: "Ç" },
+    { id: 4, label: "P" },
+    { id: 5, label: "C" },
+    { id: 6, label: "C" },
+    { id: 0, label: "P" },
+  ];
+
+  const toggleDay = (dayId: number) => {
+    setSelectedDays((prev) =>
+      prev.includes(dayId)
+        ? prev.filter((d) => d !== dayId)
+        : [...prev, dayId]
+    );
+  };
+  
+  // Animation value for the slide up effect
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  // Animation value for switching between normal and recurring
+  const toggleAnim = useRef(new Animated.Value(0)).current;
+  // State to manage modal mounting/unmounting for exit animation
+  const [isModalVisible, setIsModalVisible] = useState(visible);
+
+  useEffect(() => {
+    Animated.timing(toggleAnim, {
+      toValue: isRecurring ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false, // Height animation needs false
+    }).start();
+  }, [isRecurring]);
+
+  useEffect(() => {
+    if (visible) {
+      setIsModalVisible(true);
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        friction: 8,
+        tension: 50,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: SCREEN_HEIGHT,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => {
+        setIsModalVisible(false);
+      });
+    }
+  }, [visible]);
+
+  const handleClose = () => {
+    onClose();
+  };
+
+  const getDateLabel = (date: Date) => {
+    if (isToday(date)) {
+      return "Bugün";
+    }
+    return format(date, "dd MMMM yyyy", { locale: tr });
   };
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
@@ -52,64 +119,117 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
     }
   };
 
+  if (!isModalVisible && !visible) return null;
+
   return (
     <Modal
-      animationType="slide"
+      animationType="none"
       transparent={true}
-      visible={visible}
-      onRequestClose={onClose}
+      visible={isModalVisible}
+      onRequestClose={handleClose}
+      statusBarTranslucent={true}
     >
-      <View style={styles.modalContainer}>
-        <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.primary }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Yeni Görev Ekle</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Icon name="close" size={24} color={colors.text} />
+      <View style={styles.modalOverlay}>
+        <Pressable 
+          style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)' }]} 
+          onPress={handleClose}
+        />
+        <Animated.View 
+          style={[
+            styles.modalContent, 
+            { 
+              backgroundColor: colors.card,
+              shadowColor: isDark ? "#000" : "#888",
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          <View style={styles.sheetHandleContainer}>
+            <View style={[styles.sheetHandle, { backgroundColor: isDark ? '#444' : colors.border }]} />
+          </View>
+          <View style={[styles.modalHeader, { borderBottomColor: isDark ? '#333' : colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              {isRecurring ? 'Yeni Sabit Görev' : 'Yeni Görev Ekle'}
+            </Text>
+            <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.inputContainer}>
             <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.inputBackground }]}
+              style={[
+                styles.input, 
+                { 
+                  color: colors.text, 
+                  borderColor: isRecurring ? activeColor : colors.border, 
+                  backgroundColor: colors.inputBackground 
+                }
+              ]}
               placeholder="Görev Başlığı"
               placeholderTextColor={colors.textSecondary}
               value={newTask.title}
-              maxLength={isRecurring ? 15 : 25}
+              maxLength={isRecurring ? 15 : 40}
+              autoFocus={true}
               onChangeText={(text) => onTaskChange("title", text)}
             />
             <Text style={[styles.charCount, { color: colors.textSecondary }]}>
-              {newTask.title.length} / {isRecurring ? 15 : 25}
+              {newTask.title.length} / {isRecurring ? 15 : 40}
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={[styles.datePickerButton, { borderColor: colors.border, backgroundColor: colors.inputBackground }]}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <View style={styles.datePickerContent}>
-              <Icon name="calendar-today" size={20} color={colors.primary} />
-              <Text style={[styles.datePickerText, { color: colors.text }]}>
-                {newTask.createdAt
-                  ? formatDate(newTask.createdAt)
-                  : "Tarih Seçin"}
-              </Text>
-            </View>
-          </TouchableOpacity>
+          <Animated.View style={{
+            opacity: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+            maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [100, 0] }),
+            transform: [{
+              translateY: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -10] })
+            }],
+            overflow: 'hidden'
+          }}>
+            <TouchableOpacity
+              style={[
+                styles.datePickerButton, 
+                { 
+                  borderColor: colors.border, 
+                  backgroundColor: colors.inputBackground 
+                }
+              ]}
+              onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.datePickerContent}>
+                <View style={[styles.iconContainer, { backgroundColor: activeColor + '15' }]}>
+                  <Icon name="calendar-today" size={18} color={activeColor} />
+                </View>
+                <View>
+                  <Text style={[styles.labelHint, { color: colors.textSecondary }]}>Tarih</Text>
+                  <Text style={[styles.datePickerText, { color: colors.text }]}>
+                    {newTask.createdAt ? getDateLabel(new Date(newTask.createdAt)) : "Tarih Seçin"}
+                  </Text>
+                </View>
+              </View>
+              <Icon name="chevron-right" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </Animated.View>
 
           {showDatePicker && (
-            <>
+            <Animated.View style={{
+              opacity: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+              maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }),
+              overflow: 'hidden'
+            }}>
               {Platform.OS === "ios" && (
-                <View style={styles.iosPickerContainer}>
+                <View style={[styles.iosPickerContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={[styles.iosPickerHeader, { borderBottomColor: colors.border }]}>
                     <TouchableOpacity
                       onPress={() => setShowDatePicker(false)}
                       style={styles.iosPickerDoneButton}
                     >
-                      <Text style={[styles.iosPickerDoneText, { color: colors.primary }]}>Tamam</Text>
+                      <Text style={[styles.iosPickerDoneText, { color: activeColor }]}>Tamam</Text>
                     </TouchableOpacity>
                   </View>
                   <DateTimePicker
-                    value={newTask.createdAt || new Date()}
+                    value={newTask.createdAt ? new Date(newTask.createdAt) : new Date()}
                     mode="date"
                     display="spinner"
                     onChange={handleDateChange}
@@ -119,201 +239,335 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
               )}
               {Platform.OS === "android" && (
                 <DateTimePicker
-                  value={newTask.createdAt || new Date()}
+                  value={newTask.createdAt ? new Date(newTask.createdAt) : new Date()}
                   mode="date"
                   display="default"
                   onChange={handleDateChange}
                 />
               )}
-            </>
+            </Animated.View>
           )}
 
           <TouchableOpacity
-            style={[styles.checkboxContainer, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+            style={[
+              styles.checkboxContainer, 
+              { 
+                backgroundColor: isRecurring ? activeColor + '10' : colors.inputBackground, 
+                borderColor: isRecurring ? activeColor : colors.border,
+                marginBottom: isRecurring ? 12 : 24
+              }
+            ]}
             onPress={() => setIsRecurring(!isRecurring)}
+            activeOpacity={0.8}
           >
-            <View style={[styles.checkbox, { backgroundColor: isRecurring ? colors.primary : colors.card, borderColor: isRecurring ? colors.primary : colors.border }]}>
+            <View style={[
+              styles.checkbox, 
+              { 
+                backgroundColor: isRecurring ? RECURRING_PURPLE : colors.card, 
+                borderColor: isRecurring ? RECURRING_PURPLE : colors.border 
+              }
+            ]}>
               {isRecurring && <Icon name="check" size={16} color="#fff" />}
             </View>
-            <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Görev (Her gün tekrarlar)</Text>
+            <View style={styles.checkboxTextContainer}>
+              <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Görev</Text>
+              <Text style={[styles.checkboxSubLabel, { color: colors.textSecondary }]}>Her gün otomatik tekrarlanır</Text>
+            </View>
           </TouchableOpacity>
 
+          <Animated.View style={{
+            opacity: toggleAnim,
+            maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 200] }),
+            transform: [{
+              translateY: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] })
+            }],
+            overflow: 'hidden'
+          }}>
+            <View style={styles.daysContainer}>
+              <View style={styles.daysHeader}>
+                <Text style={[styles.daysTitle, { color: colors.textSecondary }]}>Tekrarlanacak Günler</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.everyDayChip, 
+                    { 
+                      backgroundColor: selectedDays.length === 0 ? activeColor + '20' : 'transparent',
+                      borderColor: selectedDays.length === 0 ? activeColor : isDark ? '#444' : colors.border
+                    }
+                  ]}
+                  onPress={() => setSelectedDays([])}
+                >
+                  <Text style={[styles.everyDayText, { color: selectedDays.length === 0 ? activeColor : colors.textSecondary }]}>
+                    Her Gün
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.daysRow}>
+                {daysList.map((day) => {
+                  const isSelected = selectedDays.includes(day.id);
+                  return (
+                    <TouchableOpacity
+                      key={day.id}
+                      style={[
+                        styles.dayButton,
+                        { 
+                          backgroundColor: isSelected ? activeColor : colors.inputBackground,
+                          borderColor: isSelected ? activeColor : isDark ? '#444' : colors.border
+                        }
+                      ]}
+                      onPress={() => toggleDay(day.id)}
+                    >
+                      <Text style={[styles.dayButtonText, { color: isSelected ? "#fff" : colors.text }]}>
+                        {day.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={[styles.daysHint, { color: colors.textSecondary }]}>
+                {selectedDays.length === 0 
+                  ? "Görev haftanın her günü otomatik olarak eklenir." 
+                  : "Görev sadece seçilen günlerde otomatik olarak eklenir."}
+              </Text>
+            </View>
+          </Animated.View>
+
           <TouchableOpacity
-            style={[styles.submitButton, { backgroundColor: colors.primary }]}
+            style={[
+              styles.submitButton, 
+              { 
+                backgroundColor: activeColor,
+                opacity: newTask.title.trim() ? 1 : 0.6,
+                shadowColor: activeColor,
+              }
+            ]}
+            disabled={!newTask.title.trim()}
             onPress={() => {
               if (isRecurring && onCreateRecurringTask) {
-                onCreateRecurringTask(newTask.title);
+                onCreateRecurringTask(newTask.title, selectedDays);
                 setIsRecurring(false);
+                setSelectedDays([]);
               } else {
                 onCreateTask();
               }
             }}
           >
-            <Text style={styles.submitButtonText}>Görev Oluştur</Text>
+            <Icon name={isRecurring ? "repeat" : "add-task"} size={20} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.submitButtonText}>
+              {isRecurring ? 'Sabit Görev Oluştur' : 'Görev Oluştur'}
+            </Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
+  modalOverlay: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-end",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   modalContent: {
     backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 20,
-    width: "90%",
-    maxHeight: "80%",
-    borderWidth: 2,
-    borderColor: "#007AFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    width: "100%",
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    elevation: 20,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  sheetHandleContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 5,
+    borderRadius: 2.5,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
-    paddingBottom: 10,
-    borderBottomWidth: 2,
+    marginBottom: 24,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    flex: 1,
+    fontWeight: "700",
+    letterSpacing: -0.5,
   },
   inputContainer: {
     position: 'relative',
-    marginBottom: 15,
+    marginBottom: 20,
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 10,
-    paddingRight: 60, // Space for counter
+    borderWidth: 1.5,
+    borderRadius: 12,
+    padding: 16,
+    paddingRight: 65,
     fontSize: 16,
+    fontWeight: '500',
   },
   charCount: {
     position: 'absolute',
-    right: 10,
-    bottom: 10,
-    fontSize: 12,
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: "top",
-  },
-  submitButton: {
-    backgroundColor: "#007AFF",
-    padding: 15,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  submitButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  dropdownText: {
-    fontSize: 16,
-    color: "#333",
-  },
-  dropdownContainer: {
-    maxHeight: 200,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    marginBottom: 15,
-    backgroundColor: "#fff",
-  },
-  dropdownList: {
-    maxHeight: 200,
-  },
-  dropdownItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  selectedItem: {
-    backgroundColor: "#f0f8ff",
-  },
-  dropdownItemText: {
-    fontSize: 16,
-    color: "#333",
+    right: 12,
+    bottom: 16,
+    fontSize: 11,
+    fontWeight: '600',
   },
   datePickerButton: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 15,
-    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   datePickerContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+  },
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  labelHint: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: 2,
   },
   datePickerText: {
-    fontSize: 16,
-    color: "#333",
+    fontSize: 15,
+    fontWeight: "600",
   },
   iosPickerContainer: {
-    marginBottom: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+    overflow: 'hidden',
   },
   iosPickerHeader: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    paddingVertical: 10,
+    padding: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
   },
   iosPickerDoneButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 5,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
   },
   iosPickerDoneText: {
-    color: "#007AFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   checkboxContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
-    backgroundColor: "#f9f9f9",
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#eee",
+    marginBottom: 24,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
   },
   checkbox: {
     width: 24,
     height: 24,
-    borderRadius: 6,
+    borderRadius: 8,
     borderWidth: 2,
-    borderColor: "#ccc",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
-    backgroundColor: "#fff",
+    marginRight: 14,
   },
-  checkboxChecked: {
-    backgroundColor: "#007AFF",
-    borderColor: "#007AFF",
+  checkboxTextContainer: {
+    flex: 1,
   },
   checkboxLabel: {
     fontSize: 16,
-    color: "#333",
+    fontWeight: "600",
+  },
+  checkboxSubLabel: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  submitButton: {
+    padding: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: 'row',
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitButtonText: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  daysContainer: {
+    marginBottom: 24,
+    paddingHorizontal: 4,
+  },
+  daysHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  daysTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    marginLeft: 4,
+  },
+  everyDayChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  everyDayText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  daysRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  dayButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  daysHint: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginLeft: 4,
+    opacity: 0.8,
   },
 });
 

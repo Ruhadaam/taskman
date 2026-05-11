@@ -5,8 +5,30 @@ import { useTheme } from "../../context/ThemeContext";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 
 export default function AccountScreen() {
-    const { user, signOut } = useAuth();
+    const { user, signOut, deleteAccount } = useAuth();
     const { colors } = useTheme();
+
+    const handleDeleteAccount = async () => {
+        Alert.alert(
+            "Hesabımı Sil",
+            "Hesabınızı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.",
+            [
+                { text: "İptal", style: "cancel" },
+                {
+                    text: "Sil",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await deleteAccount();
+                        } catch (error) {
+                            console.error("Hesap silinirken hata oluştu:", error);
+                            Alert.alert("Hata", "Hesap silinirken bir hata oluştu");
+                        }
+                    },
+                },
+            ]
+        );
+    };
 
     const handleSignOut = async () => {
         Alert.alert(
@@ -64,6 +86,12 @@ export default function AccountScreen() {
                         icon="logout"
                         title="Çıkış Yap"
                         onPress={handleSignOut}
+                        danger={true}
+                    />
+                    <SettingItem
+                        icon="delete-forever"
+                        title="Hesabımı Sil"
+                        onPress={handleDeleteAccount}
                         danger={true}
                     />
                 </View>
