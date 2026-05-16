@@ -3,7 +3,7 @@
     "name": "Vzbel",
     "slug": "task-management-app",
     "scheme": "vzbel",
-    "version": "1.0.2",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/V_white.png",
     "userInterfaceStyle": "automatic",
@@ -68,7 +68,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.vzbel.vzbelapp",
       "appleTeamId": "XD9YB38K7P",
-      "buildNumber": "1.0.3",
+      "buildNumber": "1.0.69",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -80,7 +80,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.vzbelapp",
-      "versionCode": 2
+      "versionCode": 3
     },
     "web": {
       "favicon": "./assets/V_white.png"
@@ -89,6 +89,12 @@
       "eas": {
         "projectId": "16215e95-d720-4998-aa19-db3edd4efcf9"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/16215e95-d720-4998-aa19-db3edd4efcf9"
     }
   }
 }

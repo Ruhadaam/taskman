@@ -10,7 +10,10 @@ import {
   Pressable,
   Animated,
   Dimensions,
+  Keyboard,
+  ScrollView,
 } from "react-native";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useTheme } from "../../context/ThemeContext";
@@ -40,7 +43,39 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const keyboardHeightAnim = useRef(new Animated.Value(0)).current;
   const { colors, isDark } = useTheme();
+  const { bottom: safeBottom } = useSafeAreaInsets();
+
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => {
+        setKeyboardVisible(true);
+        Animated.timing(keyboardHeightAnim, {
+          toValue: e.endCoordinates.height,
+          duration: Platform.OS === "ios" ? e.duration ?? 250 : 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      (e) => {
+        setKeyboardVisible(false);
+        Animated.timing(keyboardHeightAnim, {
+          toValue: 0,
+          duration: Platform.OS === "ios" ? e.duration ?? 250 : 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   // Dynamic color theme
   const RECURRING_PURPLE = "#9C27B0";
@@ -68,6 +103,10 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   // Animation value for switching between normal and recurring
   const toggleAnim = useRef(new Animated.Value(0)).current;
+  // Combined: slideAnim for entry/exit + keyboard offset (negative = move up)
+  const cardTranslateY = useRef(
+    Animated.add(slideAnim, Animated.multiply(keyboardHeightAnim, -1))
+  ).current;
   // State to manage modal mounting/unmounting for exit animation
   const [isModalVisible, setIsModalVisible] = useState(visible);
 
@@ -129,236 +168,260 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
       onRequestClose={handleClose}
       statusBarTranslucent={true}
     >
-      <View style={styles.modalOverlay}>
-        <Pressable 
-          style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)' }]} 
-          onPress={handleClose}
-        />
-        <Animated.View 
-          style={[
-            styles.modalContent, 
-            { 
-              backgroundColor: colors.card,
-              shadowColor: isDark ? "#000" : "#888",
-              transform: [{ translateY: slideAnim }]
-            }
-          ]}
+      {/* Dark backdrop */}
+      <Pressable
+        style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)' }]}
+        onPress={handleClose}
+      />
+
+      {/* Card: single Animated.View, bottom fixed, keyboard offset via transform */}
+      <Animated.View
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          transform: [{ translateY: cardTranslateY }],
+        }}
+      >
+        <View
+          style={{
+            width: '100%',
+            maxHeight: SCREEN_HEIGHT * 0.85,
+            backgroundColor: colors.card,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: 24,
+            paddingBottom: keyboardVisible ? 16 : safeBottom + 16,
+            shadowColor: isDark ? '#000' : '#888',
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.12,
+            shadowRadius: 12,
+            elevation: 20,
+          }}
         >
-          <View style={styles.sheetHandleContainer}>
-            <View style={[styles.sheetHandle, { backgroundColor: isDark ? '#444' : colors.border }]} />
-          </View>
-          <View style={[styles.modalHeader, { borderBottomColor: isDark ? '#333' : colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              {isRecurring ? 'Yeni Sabit Görev' : 'Yeni Görev Ekle'}
-            </Text>
-            <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Icon name="close" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
+            <View style={styles.sheetHandleContainer}>
+              <View style={[styles.sheetHandle, { backgroundColor: isDark ? '#444' : colors.border }]} />
+            </View>
+            <View style={[styles.modalHeader, { borderBottomColor: isDark ? '#333' : colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                {isRecurring ? 'Yeni Sabit Görev' : 'Yeni Görev Ekle'}
+              </Text>
+              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Icon name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
 
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={[
-                styles.input, 
-                { 
-                  color: colors.text, 
-                  borderColor: isRecurring ? activeColor : colors.border, 
-                  backgroundColor: colors.inputBackground 
-                }
-              ]}
-              placeholder="Görev Başlığı"
-              placeholderTextColor={colors.textSecondary}
-              value={newTask.title}
-              maxLength={isRecurring ? 15 : 40}
-              autoFocus={true}
-              onChangeText={(text) => onTaskChange("title", text)}
-            />
-            <Text style={[styles.charCount, { color: colors.textSecondary }]}>
-              {newTask.title.length} / {isRecurring ? 15 : 40}
-            </Text>
-          </View>
-
-          <Animated.View style={{
-            opacity: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-            maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [100, 0] }),
-            transform: [{
-              translateY: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -10] })
-            }],
-            overflow: 'hidden'
-          }}>
-            <TouchableOpacity
-              style={[
-                styles.datePickerButton, 
-                { 
-                  borderColor: colors.border, 
-                  backgroundColor: colors.inputBackground 
-                }
-              ]}
-              onPress={() => setShowDatePicker(true)}
-              activeOpacity={0.7}
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              contentContainerStyle={{ paddingBottom: 8 }}
             >
-              <View style={styles.datePickerContent}>
-                <View style={[styles.iconContainer, { backgroundColor: activeColor + '15' }]}>
-                  <Icon name="calendar-today" size={18} color={activeColor} />
-                </View>
-                <View>
-                  <Text style={[styles.labelHint, { color: colors.textSecondary }]}>Tarih</Text>
-                  <Text style={[styles.datePickerText, { color: colors.text }]}>
-                    {newTask.createdAt ? getDateLabel(new Date(newTask.createdAt)) : "Tarih Seçin"}
-                  </Text>
-                </View>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={[
+                    styles.input, 
+                    { 
+                      color: colors.text, 
+                      borderColor: isRecurring ? activeColor : colors.border, 
+                      backgroundColor: colors.inputBackground 
+                    }
+                  ]}
+                  placeholder="Görev Başlığı"
+                  placeholderTextColor={colors.textSecondary}
+                  value={newTask.title}
+                  maxLength={isRecurring ? 15 : 40}
+                  autoFocus={true}
+                  onChangeText={(text) => onTaskChange("title", text)}
+                />
+                <Text style={[styles.charCount, { color: colors.textSecondary }]}>
+                  {newTask.title.length} / {isRecurring ? 15 : 40}
+                </Text>
               </View>
-              <Icon name="chevron-right" size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </Animated.View>
 
-          {showDatePicker && (
             <Animated.View style={{
               opacity: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-              maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }),
+              maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [100, 0] }),
+              transform: [{
+                translateY: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -10] })
+              }],
               overflow: 'hidden'
             }}>
-              {Platform.OS === "ios" && (
-                <View style={[styles.iosPickerContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={[styles.iosPickerHeader, { borderBottomColor: colors.border }]}>
-                    <TouchableOpacity
-                      onPress={() => setShowDatePicker(false)}
-                      style={styles.iosPickerDoneButton}
-                    >
-                      <Text style={[styles.iosPickerDoneText, { color: activeColor }]}>Tamam</Text>
-                    </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.datePickerButton, 
+                  { 
+                    borderColor: colors.border, 
+                    backgroundColor: colors.inputBackground 
+                  }
+                ]}
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.datePickerContent}>
+                  <View style={[styles.iconContainer, { backgroundColor: activeColor + '15' }]}>
+                    <Icon name="calendar-today" size={18} color={activeColor} />
                   </View>
+                  <View>
+                    <Text style={[styles.labelHint, { color: colors.textSecondary }]}>Tarih</Text>
+                    <Text style={[styles.datePickerText, { color: colors.text }]}>
+                      {newTask.createdAt ? getDateLabel(new Date(newTask.createdAt)) : "Tarih Seçin"}
+                    </Text>
+                  </View>
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </Animated.View>
+
+            {showDatePicker && (
+              <Animated.View style={{
+                opacity: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+                maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }),
+                overflow: 'hidden'
+              }}>
+                {Platform.OS === "ios" && (
+                  <View style={[styles.iosPickerContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={[styles.iosPickerHeader, { borderBottomColor: colors.border }]}>
+                      <TouchableOpacity
+                        onPress={() => setShowDatePicker(false)}
+                        style={styles.iosPickerDoneButton}
+                      >
+                        <Text style={[styles.iosPickerDoneText, { color: activeColor }]}>Tamam</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={newTask.createdAt ? new Date(newTask.createdAt) : new Date()}
+                      mode="date"
+                      display="spinner"
+                      onChange={handleDateChange}
+                      themeVariant={isDark ? "dark" : "light"}
+                    />
+                  </View>
+                )}
+                {Platform.OS === "android" && (
                   <DateTimePicker
                     value={newTask.createdAt ? new Date(newTask.createdAt) : new Date()}
                     mode="date"
-                    display="spinner"
+                    display="default"
                     onChange={handleDateChange}
-                    themeVariant={isDark ? "dark" : "light"}
                   />
+                )}
+              </Animated.View>
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.checkboxContainer, 
+                { 
+                  backgroundColor: isRecurring ? activeColor + '10' : colors.inputBackground, 
+                  borderColor: isRecurring ? activeColor : colors.border,
+                  marginBottom: isRecurring ? 12 : 24
+                }
+              ]}
+              onPress={() => setIsRecurring(!isRecurring)}
+              activeOpacity={0.8}
+            >
+              <View style={[
+                styles.checkbox, 
+                { 
+                  backgroundColor: isRecurring ? RECURRING_PURPLE : colors.card, 
+                  borderColor: isRecurring ? RECURRING_PURPLE : colors.border 
+                }
+              ]}>
+                {isRecurring && <Icon name="check" size={16} color="#fff" />}
+              </View>
+              <View style={styles.checkboxTextContainer}>
+                <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Görev</Text>
+                <Text style={[styles.checkboxSubLabel, { color: colors.textSecondary }]}>Her gün otomatik tekrarlanır</Text>
+              </View>
+            </TouchableOpacity>
+
+            <Animated.View style={{
+              opacity: toggleAnim,
+              maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 200] }),
+              transform: [{
+                translateY: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] })
+              }],
+              overflow: 'hidden'
+            }}>
+              <View style={styles.daysContainer}>
+                <View style={styles.daysHeader}>
+                  <Text style={[styles.daysTitle, { color: colors.textSecondary }]}>Tekrarlanacak Günler</Text>
+                  <TouchableOpacity 
+                    style={[
+                      styles.everyDayChip, 
+                      { 
+                        backgroundColor: selectedDays.length === 0 ? activeColor + '20' : 'transparent',
+                        borderColor: selectedDays.length === 0 ? activeColor : isDark ? '#444' : colors.border
+                      }
+                    ]}
+                    onPress={() => setSelectedDays([])}
+                  >
+                    <Text style={[styles.everyDayText, { color: selectedDays.length === 0 ? activeColor : colors.textSecondary }]}>
+                      Her Gün
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-              )}
-              {Platform.OS === "android" && (
-                <DateTimePicker
-                  value={newTask.createdAt ? new Date(newTask.createdAt) : new Date()}
-                  mode="date"
-                  display="default"
-                  onChange={handleDateChange}
-                />
-              )}
+                
+                <View style={styles.daysRow}>
+                  {daysList.map((day) => {
+                    const isSelected = selectedDays.includes(day.id);
+                    return (
+                      <TouchableOpacity
+                        key={day.id}
+                        style={[
+                          styles.dayButton,
+                          { 
+                            backgroundColor: isSelected ? activeColor : colors.inputBackground,
+                            borderColor: isSelected ? activeColor : isDark ? '#444' : colors.border
+                          }
+                        ]}
+                        onPress={() => toggleDay(day.id)}
+                      >
+                        <Text style={[styles.dayButtonText, { color: isSelected ? "#fff" : colors.text }]}>
+                          {day.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={[styles.daysHint, { color: colors.textSecondary }]}>
+                  {selectedDays.length === 0 
+                    ? "Görev haftanın her günü otomatik olarak eklenir." 
+                    : "Görev sadece seçilen günlerde otomatik olarak eklenir."}
+                </Text>
+              </View>
             </Animated.View>
-          )}
 
-          <TouchableOpacity
-            style={[
-              styles.checkboxContainer, 
-              { 
-                backgroundColor: isRecurring ? activeColor + '10' : colors.inputBackground, 
-                borderColor: isRecurring ? activeColor : colors.border,
-                marginBottom: isRecurring ? 12 : 24
-              }
-            ]}
-            onPress={() => setIsRecurring(!isRecurring)}
-            activeOpacity={0.8}
-          >
-            <View style={[
-              styles.checkbox, 
-              { 
-                backgroundColor: isRecurring ? RECURRING_PURPLE : colors.card, 
-                borderColor: isRecurring ? RECURRING_PURPLE : colors.border 
-              }
-            ]}>
-              {isRecurring && <Icon name="check" size={16} color="#fff" />}
-            </View>
-            <View style={styles.checkboxTextContainer}>
-              <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Görev</Text>
-              <Text style={[styles.checkboxSubLabel, { color: colors.textSecondary }]}>Her gün otomatik tekrarlanır</Text>
-            </View>
-          </TouchableOpacity>
-
-          <Animated.View style={{
-            opacity: toggleAnim,
-            maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 200] }),
-            transform: [{
-              translateY: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] })
-            }],
-            overflow: 'hidden'
-          }}>
-            <View style={styles.daysContainer}>
-              <View style={styles.daysHeader}>
-                <Text style={[styles.daysTitle, { color: colors.textSecondary }]}>Tekrarlanacak Günler</Text>
-                <TouchableOpacity 
-                  style={[
-                    styles.everyDayChip, 
-                    { 
-                      backgroundColor: selectedDays.length === 0 ? activeColor + '20' : 'transparent',
-                      borderColor: selectedDays.length === 0 ? activeColor : isDark ? '#444' : colors.border
-                    }
-                  ]}
-                  onPress={() => setSelectedDays([])}
-                >
-                  <Text style={[styles.everyDayText, { color: selectedDays.length === 0 ? activeColor : colors.textSecondary }]}>
-                    Her Gün
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              
-              <View style={styles.daysRow}>
-                {daysList.map((day) => {
-                  const isSelected = selectedDays.includes(day.id);
-                  return (
-                    <TouchableOpacity
-                      key={day.id}
-                      style={[
-                        styles.dayButton,
-                        { 
-                          backgroundColor: isSelected ? activeColor : colors.inputBackground,
-                          borderColor: isSelected ? activeColor : isDark ? '#444' : colors.border
-                        }
-                      ]}
-                      onPress={() => toggleDay(day.id)}
-                    >
-                      <Text style={[styles.dayButtonText, { color: isSelected ? "#fff" : colors.text }]}>
-                        {day.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <Text style={[styles.daysHint, { color: colors.textSecondary }]}>
-                {selectedDays.length === 0 
-                  ? "Görev haftanın her günü otomatik olarak eklenir." 
-                  : "Görev sadece seçilen günlerde otomatik olarak eklenir."}
+            <TouchableOpacity
+              style={[
+                styles.submitButton, 
+                { 
+                  backgroundColor: activeColor,
+                  opacity: newTask.title.trim() ? 1 : 0.6,
+                  shadowColor: activeColor,
+                }
+              ]}
+              disabled={!newTask.title.trim()}
+              onPress={() => {
+                if (isRecurring && onCreateRecurringTask) {
+                  onCreateRecurringTask(newTask.title, selectedDays);
+                  setIsRecurring(false);
+                  setSelectedDays([]);
+                } else {
+                  onCreateTask();
+                }
+              }}
+            >
+              <Icon name={isRecurring ? "repeat" : "add-task"} size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.submitButtonText}>
+                {isRecurring ? 'Sabit Görev Oluştur' : 'Görev Oluştur'}
               </Text>
-            </View>
-          </Animated.View>
-
-          <TouchableOpacity
-            style={[
-              styles.submitButton, 
-              { 
-                backgroundColor: activeColor,
-                opacity: newTask.title.trim() ? 1 : 0.6,
-                shadowColor: activeColor,
-              }
-            ]}
-            disabled={!newTask.title.trim()}
-            onPress={() => {
-              if (isRecurring && onCreateRecurringTask) {
-                onCreateRecurringTask(newTask.title, selectedDays);
-                setIsRecurring(false);
-                setSelectedDays([]);
-              } else {
-                onCreateTask();
-              }
-            }}
-          >
-            <Icon name={isRecurring ? "repeat" : "add-task"} size={20} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.submitButtonText}>
-              {isRecurring ? 'Sabit Görev Oluştur' : 'Görev Oluştur'}
-            </Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
+            </ScrollView>
+          </View>
         </Animated.View>
-      </View>
     </Modal>
   );
 };
@@ -368,7 +431,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   modalContent: {
     backgroundColor: "#fff",

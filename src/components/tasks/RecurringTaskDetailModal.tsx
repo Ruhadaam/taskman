@@ -9,7 +9,8 @@ import {
   Platform, 
   Pressable, 
   Animated, 
-  Dimensions 
+  Dimensions,
+  KeyboardAvoidingView
 } from "react-native";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
@@ -114,163 +115,192 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
           style={[
             styles.modalContent, 
             { 
-              backgroundColor: colors.card,
-              shadowColor: isDark ? "#000" : "#888",
-              transform: [{ translateY: slideAnim }]
+              backgroundColor: 'transparent',
+              shadowOpacity: 0,
+              elevation: 0,
+              transform: [{ translateY: slideAnim }],
+              padding: 0,
             }
           ]}
         >
-          <View style={styles.sheetHandleContainer}>
-            <View style={[styles.sheetHandle, { backgroundColor: isDark ? '#444' : colors.border }]} />
-          </View>
-          
-          <View style={[styles.modalHeader, { borderBottomColor: isDark ? '#333' : colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Sabit Görevi Düzenle</Text>
-            <View style={styles.headerIcons}>
-              <TouchableOpacity
-                onPress={onDeleteTask}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                style={styles.deleteButton}
-              >
-                <Icon name="delete-outline" size={24} color={colors.danger} />
-              </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={onClose}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Icon name="close" size={24} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={[
-                styles.input, 
-                { 
-                  color: colors.text, 
-                  borderColor: isRecurring ? activeColor : colors.border, 
-                  backgroundColor: colors.inputBackground 
-                }
-              ]}
-              placeholder="Görev Başlığı"
-              placeholderTextColor={colors.textSecondary}
-              value={editTitle}
-              maxLength={isRecurring ? 15 : 40}
-              onChangeText={setEditTitle}
-            />
-            <Text style={[styles.charCount, { color: colors.textSecondary }]}>
-              {editTitle.length} / {isRecurring ? 15 : 40}
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={[
-              styles.checkboxContainer, 
-              { 
-                backgroundColor: isRecurring ? activeColor + '10' : colors.inputBackground, 
-                borderColor: isRecurring ? activeColor : colors.border,
-                marginBottom: isRecurring ? 12 : 24
-              }
-            ]}
-            onPress={() => setIsRecurring(!isRecurring)}
-            activeOpacity={0.8}
-          >
-            <View style={[
-              styles.checkbox, 
-              { 
-                backgroundColor: isRecurring ? RECURRING_PURPLE : colors.card, 
-                borderColor: isRecurring ? RECURRING_PURPLE : colors.border 
-              }
-            ]}>
-              {isRecurring && <Icon name="check" size={16} color="#fff" />}
-            </View>
-            <View style={styles.checkboxTextContainer}>
-              <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Görev</Text>
-              <Text style={[styles.checkboxSubLabel, { color: colors.textSecondary }]}>Bu görev her gün otomatik tekrarlanır</Text>
-            </View>
-          </TouchableOpacity>
-
-          <Animated.View style={{
-            opacity: toggleAnim,
-            maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 200] }),
-            transform: [{
-              translateY: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] })
-            }],
-            overflow: 'hidden'
-          }}>
-            <View style={styles.daysContainer}>
-              <View style={styles.daysHeader}>
-                <Text style={[styles.daysTitle, { color: colors.textSecondary }]}>Tekrarlanacak Günler</Text>
-                <TouchableOpacity 
-                  style={[
-                    styles.everyDayChip, 
-                    { 
-                      backgroundColor: selectedDays.length === 0 ? activeColor + '20' : 'transparent',
-                      borderColor: selectedDays.length === 0 ? activeColor : isDark ? '#444' : colors.border
-                    }
-                  ]}
-                  onPress={() => setSelectedDays([])}
-                >
-                  <Text style={[styles.everyDayText, { color: selectedDays.length === 0 ? activeColor : colors.textSecondary }]}>
-                    Her Gün
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              
-              <View style={styles.daysRow}>
-                {daysList.map((day) => {
-                  const isSelected = selectedDays.includes(day.id);
-                  return (
-                    <TouchableOpacity
-                      key={day.id}
-                      style={[
-                        styles.dayButton,
-                        { 
-                          backgroundColor: isSelected ? activeColor : colors.inputBackground,
-                          borderColor: isSelected ? activeColor : isDark ? '#444' : colors.border
-                        }
-                      ]}
-                      onPress={() => toggleDay(day.id)}
-                    >
-                      <Text style={[styles.dayButtonText, { color: isSelected ? "#fff" : colors.text }]}>
-                        {day.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <Text style={[styles.daysHint, { color: colors.textSecondary }]}>
-                {selectedDays.length === 0 
-                  ? "Görev haftanın her günü otomatik olarak eklenir." 
-                  : "Görev sadece seçilen günlerde otomatik olarak eklenir."}
-              </Text>
-            </View>
-          </Animated.View>
-
-          <TouchableOpacity
-            style={[
-              styles.submitButton, 
-              { 
-                backgroundColor: activeColor,
-                opacity: editTitle.trim() ? 1 : 0.6,
-                shadowColor: activeColor,
-              }
-            ]}
-            disabled={!editTitle.trim()}
-            onPress={() => {
-              if (!isRecurring && onConvertToNormal) {
-                onConvertToNormal(editTitle);
-              } else {
-                onSave(editTitle, selectedDays);
-              }
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+            style={{ 
+              width: "100%", 
+              backgroundColor: colors.card,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              padding: 24,
+              paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+              shadowColor: isDark ? "#000" : "#888",
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 10,
+              elevation: 20,
             }}
           >
-            <Icon name={isRecurring ? "save" : "check"} size={20} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.submitButtonText}>
-              {isRecurring ? "Değişiklikleri Kaydet" : "Normal Göreve Dönüştür"}
-            </Text>
-          </TouchableOpacity>
+            <View style={styles.sheetHandleContainer}>
+              <View style={[styles.sheetHandle, { backgroundColor: isDark ? '#444' : colors.border }]} />
+            </View>
+            
+            <View style={[styles.modalHeader, { borderBottomColor: isDark ? '#333' : colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Sabit Görevi Düzenle</Text>
+              <View style={styles.headerIcons}>
+                <TouchableOpacity
+                  onPress={onDeleteTask}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={styles.deleteButton}
+                >
+                  <Icon name="delete-outline" size={24} color={colors.danger} />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={onClose}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Icon name="close" size={24} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.input, 
+                  { 
+                    color: colors.text, 
+                    borderColor: isRecurring ? activeColor : colors.border, 
+                    backgroundColor: colors.inputBackground 
+                  }
+                ]}
+                placeholder="Görev Başlığı"
+                placeholderTextColor={colors.textSecondary}
+                value={editTitle}
+                maxLength={isRecurring ? 15 : 40}
+                onChangeText={setEditTitle}
+              />
+              <Text style={[styles.charCount, { color: colors.textSecondary }]}>
+                {editTitle.length} / {isRecurring ? 15 : 40}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.checkboxContainer, 
+                { 
+                  backgroundColor: isRecurring ? activeColor + '10' : colors.inputBackground, 
+                  borderColor: isRecurring ? activeColor : colors.border,
+                  marginBottom: isRecurring ? 12 : 24
+                }
+              ]}
+              onPress={() => setIsRecurring(!isRecurring)}
+              activeOpacity={0.8}
+            >
+              <View style={[
+                styles.checkbox, 
+                { 
+                  backgroundColor: isRecurring ? RECURRING_PURPLE : colors.card, 
+                  borderColor: isRecurring ? RECURRING_PURPLE : colors.border 
+                }
+              ]}>
+                {isRecurring && <Icon name="check" size={16} color="#fff" />}
+              </View>
+              <View style={styles.checkboxTextContainer}>
+                <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Görev</Text>
+                <Text style={[styles.checkboxSubLabel, { color: colors.textSecondary }]}>Bu görev her gün otomatik tekrarlanır</Text>
+              </View>
+            </TouchableOpacity>
+
+            <Animated.View style={{
+              opacity: toggleAnim,
+              maxHeight: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 200] }),
+              transform: [{
+                translateY: toggleAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] })
+              }],
+              overflow: 'hidden'
+            }}>
+              <View style={styles.daysContainer}>
+                <View style={styles.daysHeader}>
+                  <Text style={[styles.daysTitle, { color: colors.textSecondary }]}>Tekrarlanacak Günler</Text>
+                  <TouchableOpacity 
+                    style={[
+                      styles.everyDayChip, 
+                      { 
+                        backgroundColor: selectedDays.length === 0 ? activeColor + '20' : 'transparent',
+                        borderColor: selectedDays.length === 0 ? activeColor : isDark ? '#444' : colors.border
+                      }
+                    ]}
+                    onPress={() => setSelectedDays([])}
+                  >
+                    <Text style={[styles.everyDayText, { color: selectedDays.length === 0 ? activeColor : colors.textSecondary }]}>
+                      Her Gün
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.daysRow}>
+                  {daysList.map((day) => {
+                    const isSelected = selectedDays.includes(day.id);
+                    return (
+                      <TouchableOpacity
+                        key={day.id}
+                        style={[
+                          styles.dayButton,
+                          { 
+                            backgroundColor: isSelected ? activeColor : colors.inputBackground,
+                            borderColor: isSelected ? activeColor : isDark ? '#444' : colors.border
+                          }
+                        ]}
+                        onPress={() => toggleDay(day.id)}
+                      >
+                        <Text style={[styles.dayButtonText, { color: isSelected ? "#fff" : colors.text }]}>
+                          {day.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={[styles.daysHint, { color: colors.textSecondary }]}>
+                  {selectedDays.length === 0 
+                    ? "Görev haftanın her günü otomatik olarak eklenir." 
+                    : "Görev sadece seçilen günlerde otomatik olarak eklenir."}
+                </Text>
+              </View>
+            </Animated.View>
+
+            <TouchableOpacity
+              style={[
+                styles.submitButton, 
+                { 
+                  backgroundColor: activeColor,
+                  opacity: editTitle.trim() ? 1 : 0.6,
+                  shadowColor: activeColor,
+                }
+              ]}
+              disabled={!editTitle.trim()}
+              onPress={() => {
+                if (!isRecurring && onConvertToNormal) {
+                  onConvertToNormal(editTitle);
+                } else {
+                  onSave(editTitle, selectedDays);
+                }
+              }}
+            >
+              <Icon name={isRecurring ? "save" : "check"} size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.submitButtonText}>
+                {isRecurring ? "Değişiklikleri Kaydet" : "Normal Göreve Dönüştür"}
+              </Text>
+            </TouchableOpacity>
+            {/* Gap filler for WhatsApp style bottom sheet */}
+            <View style={{ 
+              height: 1000, 
+              backgroundColor: colors.card, 
+              position: 'absolute', 
+              top: '100%', 
+              left: 0, 
+              right: 0 
+            }} />
+          </KeyboardAvoidingView>
         </Animated.View>
       </View>
     </Modal>
@@ -282,7 +312,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   modalContent: {
     backgroundColor: "#fff",
