@@ -10,8 +10,10 @@ import {
   Pressable, 
   Animated, 
   Dimensions,
-  KeyboardAvoidingView
+  Keyboard,
+  ScrollView,
 } from "react-native";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { RecurringTask } from "../../types";
@@ -38,14 +40,50 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
   const [editTitle, setEditTitle] = useState<string>("");
   const [isRecurring, setIsRecurring] = useState(true);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const keyboardHeightAnim = useRef(new Animated.Value(0)).current;
   const { colors, isDark } = useTheme();
+  const { bottom: safeBottom } = useSafeAreaInsets();
 
   const RECURRING_PURPLE = "#9C27B0";
   const activeColor = colors.primary;
 
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const toggleAnim = useRef(new Animated.Value(1)).current;
+  // Combined: entry/exit slide + keyboard offset (negative = move up)
+  const cardTranslateY = useRef(
+    Animated.add(slideAnim, Animated.multiply(keyboardHeightAnim, -1))
+  ).current;
   const [isModalVisible, setIsModalVisible] = useState(visible);
+
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => {
+        setKeyboardVisible(true);
+        Animated.timing(keyboardHeightAnim, {
+          toValue: e.endCoordinates.height,
+          duration: Platform.OS === "ios" ? e.duration ?? 250 : 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      (e) => {
+        setKeyboardVisible(false);
+        Animated.timing(keyboardHeightAnim, {
+          toValue: 0,
+          duration: Platform.OS === "ios" ? e.duration ?? 250 : 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     Animated.timing(toggleAnim, {
@@ -70,7 +108,6 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
       setIsModalVisible(true);
       setEditTitle(selectedTask.title);
       setIsRecurring(true);
-      // Veritabanından gelen daysOfWeek bilgisini state'e aktarıyoruz
       setSelectedDays(selectedTask.daysOfWeek || []);
       
       Animated.spring(slideAnim, {
@@ -106,63 +143,60 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
       onRequestClose={onClose}
       statusBarTranslucent={true}
     >
-      <View style={styles.modalOverlay}>
-        <Pressable 
-          style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)' }]} 
-          onPress={onClose}
-        />
-        <Animated.View 
-          style={[
-            styles.modalContent, 
-            { 
-              backgroundColor: 'transparent',
-              shadowOpacity: 0,
-              elevation: 0,
-              transform: [{ translateY: slideAnim }],
-              padding: 0,
-            }
-          ]}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-            style={{ 
-              width: "100%", 
-              backgroundColor: colors.card,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              padding: 24,
-              paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-              shadowColor: isDark ? "#000" : "#888",
-              shadowOffset: { width: 0, height: -4 },
-              shadowOpacity: 0.1,
-              shadowRadius: 10,
-              elevation: 20,
-            }}
-          >
-            <View style={styles.sheetHandleContainer}>
-              <View style={[styles.sheetHandle, { backgroundColor: isDark ? '#444' : colors.border }]} />
-            </View>
-            
-            <View style={[styles.modalHeader, { borderBottomColor: isDark ? '#333' : colors.border }]}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Sabit Görevi Düzenle</Text>
-              <View style={styles.headerIcons}>
-                <TouchableOpacity
-                  onPress={onDeleteTask}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  style={styles.deleteButton}
-                >
-                  <Icon name="delete-outline" size={24} color={colors.danger} />
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  onPress={onClose}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Icon name="close" size={24} color={colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-            </View>
+      {/* Dark backdrop */}
+      <Pressable
+        style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)' }]}
+        onPress={onClose}
+      />
 
+      {/* Card: bottom fixed, keyboard offset via combined translateY */}
+      <Animated.View
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          transform: [{ translateY: cardTranslateY }],
+        }}
+      >
+        <View
+          style={{
+            width: '100%',
+            maxHeight: SCREEN_HEIGHT * 0.85,
+            backgroundColor: colors.card,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: 24,
+            paddingBottom: keyboardVisible ? 16 : safeBottom + 16,
+            shadowColor: isDark ? '#000' : '#888',
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.12,
+            shadowRadius: 12,
+            elevation: 20,
+          }}
+        >
+          <View style={styles.sheetHandleContainer}>
+            <View style={[styles.sheetHandle, { backgroundColor: isDark ? '#444' : colors.border }]} />
+          </View>
+          
+          <View style={[styles.modalHeader, { borderBottomColor: isDark ? '#333' : colors.border, justifyContent: 'flex-end' }]}>
+            <View style={styles.headerIcons}>
+              <TouchableOpacity
+                onPress={onDeleteTask}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={{ marginRight: 0 }}
+              >
+                <Icon name="delete-outline" size={24} color={colors.danger} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            contentContainerStyle={{ paddingBottom: 8 }}
+          >
             <View style={styles.inputContainer}>
               <TextInput
                 style={[
@@ -173,14 +207,14 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
                     backgroundColor: colors.inputBackground 
                   }
                 ]}
-                placeholder="Görev Başlığı"
+                placeholder="Görev İsmi"
                 placeholderTextColor={colors.textSecondary}
                 value={editTitle}
-                maxLength={isRecurring ? 15 : 40}
+                maxLength={isRecurring ? 15 : 30}
                 onChangeText={setEditTitle}
               />
               <Text style={[styles.charCount, { color: colors.textSecondary }]}>
-                {editTitle.length} / {isRecurring ? 15 : 40}
+                {editTitle.length} / {isRecurring ? 15 : 30}
               </Text>
             </View>
 
@@ -206,7 +240,7 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
                 {isRecurring && <Icon name="check" size={16} color="#fff" />}
               </View>
               <View style={styles.checkboxTextContainer}>
-                <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Görev</Text>
+                <Text style={[styles.checkboxLabel, { color: colors.text }]}>Tekrarla</Text>
                 <Text style={[styles.checkboxSubLabel, { color: colors.textSecondary }]}>Bu görev her gün otomatik tekrarlanır</Text>
               </View>
             </TouchableOpacity>
@@ -222,20 +256,6 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
               <View style={styles.daysContainer}>
                 <View style={styles.daysHeader}>
                   <Text style={[styles.daysTitle, { color: colors.textSecondary }]}>Tekrarlanacak Günler</Text>
-                  <TouchableOpacity 
-                    style={[
-                      styles.everyDayChip, 
-                      { 
-                        backgroundColor: selectedDays.length === 0 ? activeColor + '20' : 'transparent',
-                        borderColor: selectedDays.length === 0 ? activeColor : isDark ? '#444' : colors.border
-                      }
-                    ]}
-                    onPress={() => setSelectedDays([])}
-                  >
-                    <Text style={[styles.everyDayText, { color: selectedDays.length === 0 ? activeColor : colors.textSecondary }]}>
-                      Her Gün
-                    </Text>
-                  </TouchableOpacity>
                 </View>
                 
                 <View style={styles.daysRow}>
@@ -260,11 +280,7 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
                     );
                   })}
                 </View>
-                <Text style={[styles.daysHint, { color: colors.textSecondary }]}>
-                  {selectedDays.length === 0 
-                    ? "Görev haftanın her günü otomatik olarak eklenir." 
-                    : "Görev sadece seçilen günlerde otomatik olarak eklenir."}
-                </Text>
+
               </View>
             </Animated.View>
 
@@ -291,40 +307,14 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
                 {isRecurring ? "Değişiklikleri Kaydet" : "Normal Göreve Dönüştür"}
               </Text>
             </TouchableOpacity>
-            {/* Gap filler for WhatsApp style bottom sheet */}
-            <View style={{ 
-              height: 1000, 
-              backgroundColor: colors.card, 
-              position: 'absolute', 
-              top: '100%', 
-              left: 0, 
-              right: 0 
-            }} />
-          </KeyboardAvoidingView>
-        </Animated.View>
-      </View>
+          </ScrollView>
+        </View>
+      </Animated.View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    alignItems: "center",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    width: "100%",
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    elevation: 20,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-  },
   sheetHandleContainer: {
     alignItems: 'center',
     marginBottom: 12,
@@ -457,7 +447,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexDirection: 'row',
-    shadowColor: "#007AFF",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

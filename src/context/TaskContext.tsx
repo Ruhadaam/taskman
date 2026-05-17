@@ -131,8 +131,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
     const addTask = React.useCallback(async (newTask: Omit<Task, "id" | "createdAt">) => {
         if (!user?.id) return;
 
-        if (newTask.title.length > 25) {
-            Alert.alert("Hata", "Normal görev başlığı en fazla 25 karakter olabilir.");
+        if (newTask.title.length > 30) {
+            Alert.alert("Hata", "Normal görev ismi en fazla 30 karakter olabilir.");
             return;
         }
 
@@ -181,8 +181,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [loadTasks]);
 
     const updateTask = React.useCallback(async (taskId: string, updates: Partial<Task>) => {
-        if (updates.title && updates.title.length > 25) {
-            Alert.alert("Hata", "Görev başlığı en fazla 25 karakter olabilir.");
+        if (updates.title && updates.title.length > 30) {
+            Alert.alert("Hata", "Görev ismi en fazla 30 karakter olabilir.");
             return;
         }
         const updateDate = toTurkeyISOString(new Date());
@@ -216,7 +216,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
     const addRecurringTask = React.useCallback(async (title: string, daysOfWeek?: number[]) => {
         if (!user?.id) return;
         if (title.length > 15) {
-            Alert.alert("Hata", "Sabit görev başlığı en fazla 15 karakter olabilir.");
+            Alert.alert("Hata", "Tekrarlanan görev ismi en fazla 15 karakter olabilir.");
             return;
         }
         if (recurringTasks.length >= 5) {
@@ -270,7 +270,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const updateRecurringTask = React.useCallback(async (taskId: string, title: string, daysOfWeek?: number[]) => {
         if (title.length > 15) {
-            Alert.alert("Hata", "Sabit görev başlığı en fazla 15 karakter olabilir.");
+            Alert.alert("Hata", "Tekrarlanan görev ismi en fazla 15 karakter olabilir.");
             return;
         }
         setRecurringTasks(prev => prev.map(t => t.id === taskId ? { ...t, title, daysOfWeek } : t));
@@ -299,7 +299,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const convertTaskToRecurring = React.useCallback(async (taskId: string, title: string, daysOfWeek?: number[]) => {
         if (title.length > 15) {
-            Alert.alert("Hata", "Sabit görev başlığı en fazla 15 karakter olabilir.");
+            Alert.alert("Hata", "Tekrarlanan görev ismi en fazla 15 karakter olabilir.");
             return;
         }
         if (recurringTasks.length >= 5) {
@@ -325,8 +325,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [recurringTasks.length, user?.id, loadTasks, loadRecurringTasks]);
 
     const convertRecurringToTask = React.useCallback(async (taskId: string, title: string, date?: Date) => {
-        if (title.length > 25) {
-            Alert.alert("Hata", "Normal görev başlığı en fazla 25 karakter olabilir.");
+        if (title.length > 30) {
+            Alert.alert("Hata", "Normal görev ismi en fazla 30 karakter olabilir.");
             return;
         }
         const todayKey = getTurkeyDateKey(new Date());

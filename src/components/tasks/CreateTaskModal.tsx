@@ -203,14 +203,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             <View style={styles.sheetHandleContainer}>
               <View style={[styles.sheetHandle, { backgroundColor: isDark ? '#444' : colors.border }]} />
             </View>
-            <View style={[styles.modalHeader, { borderBottomColor: isDark ? '#333' : colors.border }]}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {isRecurring ? 'Yeni Sabit Görev' : 'Yeni Görev Ekle'}
-              </Text>
-              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Icon name="close" size={24} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
+
 
             <ScrollView
               keyboardShouldPersistTaps="handled"
@@ -228,15 +221,15 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                       backgroundColor: colors.inputBackground 
                     }
                   ]}
-                  placeholder="Görev Başlığı"
+                  placeholder="Görev İsmi"
                   placeholderTextColor={colors.textSecondary}
                   value={newTask.title}
-                  maxLength={isRecurring ? 15 : 40}
+                  maxLength={isRecurring ? 15 : 30}
                   autoFocus={true}
                   onChangeText={(text) => onTaskChange("title", text)}
                 />
                 <Text style={[styles.charCount, { color: colors.textSecondary }]}>
-                  {newTask.title.length} / {isRecurring ? 15 : 40}
+                  {newTask.title.length} / {isRecurring ? 15 : 30}
                 </Text>
               </View>
 
@@ -332,7 +325,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                 {isRecurring && <Icon name="check" size={16} color="#fff" />}
               </View>
               <View style={styles.checkboxTextContainer}>
-                <Text style={[styles.checkboxLabel, { color: colors.text }]}>Sabit Görev</Text>
+                <Text style={[styles.checkboxLabel, { color: colors.text }]}>Tekrarla</Text>
                 <Text style={[styles.checkboxSubLabel, { color: colors.textSecondary }]}>Her gün otomatik tekrarlanır</Text>
               </View>
             </TouchableOpacity>
@@ -348,20 +341,6 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
               <View style={styles.daysContainer}>
                 <View style={styles.daysHeader}>
                   <Text style={[styles.daysTitle, { color: colors.textSecondary }]}>Tekrarlanacak Günler</Text>
-                  <TouchableOpacity 
-                    style={[
-                      styles.everyDayChip, 
-                      { 
-                        backgroundColor: selectedDays.length === 0 ? activeColor + '20' : 'transparent',
-                        borderColor: selectedDays.length === 0 ? activeColor : isDark ? '#444' : colors.border
-                      }
-                    ]}
-                    onPress={() => setSelectedDays([])}
-                  >
-                    <Text style={[styles.everyDayText, { color: selectedDays.length === 0 ? activeColor : colors.textSecondary }]}>
-                      Her Gün
-                    </Text>
-                  </TouchableOpacity>
                 </View>
                 
                 <View style={styles.daysRow}>
@@ -386,11 +365,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                     );
                   })}
                 </View>
-                <Text style={[styles.daysHint, { color: colors.textSecondary }]}>
-                  {selectedDays.length === 0 
-                    ? "Görev haftanın her günü otomatik olarak eklenir." 
-                    : "Görev sadece seçilen günlerde otomatik olarak eklenir."}
-                </Text>
+
               </View>
             </Animated.View>
 
@@ -415,9 +390,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
               }}
             >
               <Icon name={isRecurring ? "repeat" : "add-task"} size={20} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.submitButtonText}>
-                {isRecurring ? 'Sabit Görev Oluştur' : 'Görev Oluştur'}
-              </Text>
+              <Text style={styles.submitButtonText}>Görev Oluştur</Text>
             </TouchableOpacity>
             </ScrollView>
           </View>

@@ -312,8 +312,8 @@ export default function UserDashboard() {
       await updateRecurringTask(selectedRecurringTask.id, title, daysOfWeek);
       setRecurringModalVisible(false);
     } catch (error) {
-      console.error("Sabit görev güncellenirken hata:", error);
-      Alert.alert("Hata", "Sabit görev güncellenirken bir hata oluştu");
+      console.error("Tekrarlanan görev güncellenirken hata:", error);
+      Alert.alert("Hata", "Tekrarlanan görev güncellenirken bir hata oluştu");
     }
   };
 
