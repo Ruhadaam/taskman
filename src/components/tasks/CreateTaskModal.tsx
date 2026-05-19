@@ -103,7 +103,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   const toggleAnim = useRef(new Animated.Value(0)).current;
   // Combined: slideAnim for entry/exit + keyboard offset (negative = move up)
   const cardTranslateY = useRef(
-    Animated.add(slideAnim, Animated.multiply(keyboardHeightAnim, 18)),
+    Animated.add(slideAnim, Animated.multiply(keyboardHeightAnim, -0.65)),
   ).current;
   // State to manage modal mounting/unmounting for exit animation
   const [isModalVisible, setIsModalVisible] = useState(visible);
