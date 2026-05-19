@@ -87,7 +87,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const toggleAnim = useRef(new Animated.Value(0)).current;
   // Combined: slideAnim for entry/exit + keyboard offset (negative = move up)
   const cardTranslateY = useRef(
-    Animated.add(slideAnim, Animated.multiply(keyboardHeightAnim, -1))
+    Animated.add(slideAnim, Animated.multiply(keyboardHeightAnim, -0.65))
   ).current;
   const [isModalVisible, setIsModalVisible] = useState(visible);
 

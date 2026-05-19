@@ -52,7 +52,7 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
   const toggleAnim = useRef(new Animated.Value(1)).current;
   // Combined: entry/exit slide + keyboard offset (negative = move up)
   const cardTranslateY = useRef(
-    Animated.add(slideAnim, Animated.multiply(keyboardHeightAnim, -1))
+    Animated.add(slideAnim, Animated.multiply(keyboardHeightAnim, -0.65))
   ).current;
   const [isModalVisible, setIsModalVisible] = useState(visible);
 
