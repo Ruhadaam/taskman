@@ -197,53 +197,41 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
             bounces={false}
             contentContainerStyle={{ paddingBottom: 8 }}
           >
-            <View style={styles.inputContainer}>
+            <View style={styles.minimalInputContainer}>
               <TextInput
                 style={[
-                  styles.input, 
-                  { 
-                    color: colors.text, 
-                    borderColor: isRecurring ? activeColor : colors.border, 
-                    backgroundColor: colors.inputBackground 
-                  }
+                  styles.minimalInput,
+                  { color: colors.text }
                 ]}
-                placeholder="Görev İsmi"
+                placeholder="Görev başlığı"
                 placeholderTextColor={colors.textSecondary}
                 value={editTitle}
                 maxLength={isRecurring ? 15 : 30}
                 onChangeText={setEditTitle}
               />
-              <Text style={[styles.charCount, { color: colors.textSecondary }]}>
-                {editTitle.length} / {isRecurring ? 15 : 30}
-              </Text>
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.checkboxContainer, 
-                { 
-                  backgroundColor: isRecurring ? activeColor + '10' : colors.inputBackground, 
-                  borderColor: isRecurring ? activeColor : colors.border,
-                  marginBottom: isRecurring ? 12 : 24
-                }
-              ]}
-              onPress={() => setIsRecurring(!isRecurring)}
-              activeOpacity={0.8}
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={styles.pillsContainer}
             >
-              <View style={[
-                styles.checkbox, 
-                { 
-                  backgroundColor: isRecurring ? RECURRING_PURPLE : colors.card, 
-                  borderColor: isRecurring ? RECURRING_PURPLE : colors.border 
-                }
-              ]}>
-                {isRecurring && <Icon name="check" size={16} color="#fff" />}
-              </View>
-              <View style={styles.checkboxTextContainer}>
-                <Text style={[styles.checkboxLabel, { color: colors.text }]}>Tekrarla</Text>
-                <Text style={[styles.checkboxSubLabel, { color: colors.textSecondary }]}>Bu görev her gün otomatik tekrarlanır</Text>
-              </View>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.actionPill,
+                  { 
+                    borderColor: isRecurring ? activeColor : colors.border,
+                    backgroundColor: isRecurring ? activeColor + "15" : colors.inputBackground,
+                  }
+                ]}
+                onPress={() => setIsRecurring(!isRecurring)}
+              >
+                <Icon name={isRecurring ? "repeat-on" : "repeat"} size={16} color={isRecurring ? activeColor : colors.textSecondary} />
+                <Text style={[styles.actionPillText, { color: isRecurring ? activeColor : colors.text }]}>
+                  Tekrarla
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
 
             <Animated.View style={{
               opacity: toggleAnim,
@@ -343,6 +331,35 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     marginRight: 16,
+  },
+  minimalInputContainer: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  minimalInput: {
+    fontSize: 24,
+    fontWeight: "600",
+    paddingVertical: 8,
+  },
+  pillsContainer: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 24,
+    paddingHorizontal: 4,
+  },
+  actionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 8,
+    marginRight: 8,
+  },
+  actionPillText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   inputContainer: {
     position: 'relative',

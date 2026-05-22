@@ -248,11 +248,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         try {
             const clientId = "rc-" + Math.random().toString();
             const trNow = new Date();
+            const finalDays = daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : [0, 1, 2, 3, 4, 5, 6];
             const { data, error } = await supabase.from(TABLES.RECURRING_TASKS).insert([{ 
                 title, 
                 createdby: user.id, 
                 createdat: toTurkeyISOString(trNow),
-                daysofweek: daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : null
+                daysofweek: finalDays
             }]).select().single();
             if (error) throw error;
             setRecurringTasks(prev => [...prev, { 
@@ -260,7 +261,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
                 clientId,
                 lastCompletedAt: undefined, 
                 createdAt: data.createdat ? new Date(data.createdat) : new Date(),
-                daysOfWeek: data.daysofweek || undefined
+                daysOfWeek: finalDays
             }]);
         } catch (error) {
             console.error("Sabit görev ekleme hatası:", error);
@@ -300,11 +301,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
             Alert.alert("Hata", limitError);
             return;
         }
-        setRecurringTasks(prev => prev.map(t => t.id === taskId ? { ...t, title, daysOfWeek } : t));
+        const finalDays = daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : [0, 1, 2, 3, 4, 5, 6];
+        setRecurringTasks(prev => prev.map(t => t.id === taskId ? { ...t, title, daysOfWeek: finalDays } : t));
         try {
             const { error } = await supabase.from(TABLES.RECURRING_TASKS).update({ 
                 title,
-                daysofweek: daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : null
+                daysofweek: finalDays
             }).eq("id", taskId);
             if (error) throw error;
         } catch (error) {
@@ -336,11 +338,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         }
         try {
             const trNow = new Date();
+            const finalDays = daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : [0, 1, 2, 3, 4, 5, 6];
             const { error: insertError } = await supabase.from(TABLES.RECURRING_TASKS).insert([{ 
                 title, 
                 createdby: user?.id, 
                 createdat: toTurkeyISOString(trNow),
-                daysofweek: daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : null
+                daysofweek: finalDays
             }]);
             if (insertError) throw insertError;
             const { error: deleteError } = await supabase.from(TABLES.TASKS).delete().eq("id", taskId);

@@ -216,94 +216,65 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
             bounces={false}
             contentContainerStyle={{ paddingBottom: 8 }}
           >
-            <View style={styles.inputContainer}>
+            <View style={styles.minimalInputContainer}>
               <TextInput
                 style={[
-                  styles.input,
-                  {
-                    color: colors.text,
-                    borderColor: isRecurring ? activeColor : colors.border,
-                    backgroundColor: colors.inputBackground,
-                  },
+                  styles.minimalInput,
+                  { color: colors.text }
                 ]}
-                placeholder="Görev İsmi"
+                placeholder="Test görev..."
                 placeholderTextColor={colors.textSecondary}
                 value={newTask.title}
                 maxLength={isRecurring ? 15 : 30}
                 autoFocus={true}
                 onChangeText={(text) => onTaskChange("title", text)}
               />
-              <Text style={[styles.charCount, { color: colors.textSecondary }]}>
-                {newTask.title.length} / {isRecurring ? 15 : 30}
-              </Text>
             </View>
 
-            <Animated.View
-              style={{
-                opacity: toggleAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 0],
-                }),
-                maxHeight: toggleAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [100, 0],
-                }),
-                transform: [
-                  {
-                    translateY: toggleAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -10],
-                    }),
-                  },
-                ],
-                overflow: "hidden",
-              }}
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={styles.pillsContainer}
             >
               <TouchableOpacity
                 style={[
-                  styles.datePickerButton,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.inputBackground,
-                  },
+                  styles.actionPill,
+                  { 
+                    borderColor: isRecurring ? colors.border : activeColor,
+                    backgroundColor: isRecurring ? colors.inputBackground : activeColor + "15",
+                    opacity: isRecurring ? 0.5 : 1
+                  }
                 ]}
+                disabled={isRecurring}
                 onPress={() => setShowDatePicker(true)}
-                activeOpacity={0.7}
               >
-                <View style={styles.datePickerContent}>
-                  <View
-                    style={[
-                      styles.iconContainer,
-                      { backgroundColor: activeColor + "15" },
-                    ]}
-                  >
-                    <Icon name="calendar-today" size={18} color={activeColor} />
-                  </View>
-                  <View>
-                    <Text
-                      style={[
-                        styles.labelHint,
-                        { color: colors.textSecondary },
-                      ]}
-                    >
-                      Tarih
-                    </Text>
-                    <Text
-                      style={[styles.datePickerText, { color: colors.text }]}
-                    >
-                      {newTask.createdAt
-                        ? getDateLabel(new Date(newTask.createdAt))
-                        : "Tarih Seçin"}
-                    </Text>
-                  </View>
-                </View>
-                <Icon
-                  name="chevron-right"
-                  size={20}
-                  color={colors.textSecondary}
-                />
+                <Icon name="calendar-today" size={16} color={isRecurring ? colors.textSecondary : activeColor} />
+                <Text style={[styles.actionPillText, { color: isRecurring ? colors.textSecondary : activeColor }]}>
+                  {newTask.createdAt ? getDateLabel(new Date(newTask.createdAt)) : "Bugün"}
+                </Text>
               </TouchableOpacity>
-            </Animated.View>
+
+              <TouchableOpacity
+                style={[
+                  styles.actionPill,
+                  { 
+                    borderColor: isRecurring ? activeColor : colors.border,
+                    backgroundColor: isRecurring ? activeColor + "15" : colors.inputBackground,
+                  }
+                ]}
+                onPress={() => {
+                  setIsRecurring(!isRecurring);
+                  if (!isRecurring) setShowDatePicker(false);
+                }}
+              >
+                <Icon name={isRecurring ? "repeat-on" : "repeat"} size={16} color={isRecurring ? activeColor : colors.textSecondary} />
+                <Text style={[styles.actionPillText, { color: isRecurring ? activeColor : colors.text }]}>
+                  Tekrarla
+                </Text>
+              </TouchableOpacity>
+
+
+            </ScrollView>
 
             {showDatePicker && (
               <Animated.View
@@ -377,47 +348,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
               </Animated.View>
             )}
 
-            <TouchableOpacity
-              style={[
-                styles.checkboxContainer,
-                {
-                  backgroundColor: isRecurring
-                    ? activeColor + "10"
-                    : colors.inputBackground,
-                  borderColor: isRecurring ? activeColor : colors.border,
-                  marginBottom: isRecurring ? 12 : 24,
-                },
-              ]}
-              onPress={() => setIsRecurring(!isRecurring)}
-              activeOpacity={0.8}
-            >
-              <View
-                style={[
-                  styles.checkbox,
-                  {
-                    backgroundColor: isRecurring
-                      ? RECURRING_PURPLE
-                      : colors.card,
-                    borderColor: isRecurring ? RECURRING_PURPLE : colors.border,
-                  },
-                ]}
-              >
-                {isRecurring && <Icon name="check" size={16} color="#fff" />}
-              </View>
-              <View style={styles.checkboxTextContainer}>
-                <Text style={[styles.checkboxLabel, { color: colors.text }]}>
-                  Tekrarla
-                </Text>
-                <Text
-                  style={[
-                    styles.checkboxSubLabel,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  Her gün otomatik tekrarlanır
-                </Text>
-              </View>
-            </TouchableOpacity>
+
 
             <Animated.View
               style={{
@@ -556,6 +487,35 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     letterSpacing: -0.5,
+  },
+  minimalInputContainer: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  minimalInput: {
+    fontSize: 24,
+    fontWeight: "600",
+    paddingVertical: 8,
+  },
+  pillsContainer: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 24,
+    paddingHorizontal: 4,
+  },
+  actionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 8,
+    marginRight: 8,
+  },
+  actionPillText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   inputContainer: {
     position: "relative",
