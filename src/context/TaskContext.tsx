@@ -213,14 +213,36 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     }, [loadTasks]);
 
+    const checkRecurringTaskLimits = React.useCallback((daysOfWeek?: number[], excludeTaskId?: string) => {
+        const targetDays = daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : [0, 1, 2, 3, 4, 5, 6];
+        const dayNames = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+        
+        for (const day of targetDays) {
+            let count = 0;
+            for (const task of recurringTasks) {
+                if (excludeTaskId && task.id === excludeTaskId) continue;
+                
+                const taskDays = task.daysOfWeek && task.daysOfWeek.length > 0 ? task.daysOfWeek : [0, 1, 2, 3, 4, 5, 6];
+                if (taskDays.includes(day)) {
+                    count++;
+                }
+            }
+            if (count >= 5) {
+                return `${dayNames[day]} günü için en fazla 5 sabit görev tanımlayabilirsiniz.`;
+            }
+        }
+        return null;
+    }, [recurringTasks]);
+
     const addRecurringTask = React.useCallback(async (title: string, daysOfWeek?: number[]) => {
         if (!user?.id) return;
         if (title.length > 15) {
             Alert.alert("Hata", "Tekrarlanan görev ismi en fazla 15 karakter olabilir.");
             return;
         }
-        if (recurringTasks.length >= 5) {
-            Alert.alert("Hata", "Toplamda en fazla 5 sabit görev tanımlayabilirsiniz.");
+        const limitError = checkRecurringTaskLimits(daysOfWeek);
+        if (limitError) {
+            Alert.alert("Hata", limitError);
             return;
         }
         try {
@@ -273,6 +295,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
             Alert.alert("Hata", "Tekrarlanan görev ismi en fazla 15 karakter olabilir.");
             return;
         }
+        const limitError = checkRecurringTaskLimits(daysOfWeek, taskId);
+        if (limitError) {
+            Alert.alert("Hata", limitError);
+            return;
+        }
         setRecurringTasks(prev => prev.map(t => t.id === taskId ? { ...t, title, daysOfWeek } : t));
         try {
             const { error } = await supabase.from(TABLES.RECURRING_TASKS).update({ 
@@ -302,8 +329,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
             Alert.alert("Hata", "Tekrarlanan görev ismi en fazla 15 karakter olabilir.");
             return;
         }
-        if (recurringTasks.length >= 5) {
-            Alert.alert("Hata", "Sürekli görevleriniz zaten 5 adet.");
+        const limitError = checkRecurringTaskLimits(daysOfWeek);
+        if (limitError) {
+            Alert.alert("Hata", limitError);
             return;
         }
         try {
@@ -329,15 +357,15 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
             Alert.alert("Hata", "Normal görev ismi en fazla 30 karakter olabilir.");
             return;
         }
-        const todayKey = getTurkeyDateKey(new Date());
-        const activeTasksCount = tasks.filter(t => !t.isArchived && t.status !== "completed" && t.createdAt instanceof Date && getTurkeyDateKey(t.createdAt) === todayKey).length;
+        const selectedDate = date || new Date();
+        const selectedDateKey = getTurkeyDateKey(selectedDate);
+        const activeTasksCount = tasks.filter(t => !t.isArchived && t.status !== "completed" && t.createdAt && getTurkeyDateKey(new Date(t.createdAt)) === selectedDateKey).length;
         if (activeTasksCount >= 5) {
-            Alert.alert("Hata", "Normal görevleriniz zaten 5 adet.");
+            Alert.alert("Hata", "Seçilen gün için en fazla 5 aktif görev ekleyebilirsiniz.");
             return;
         }
         setRecurringTasks(prev => prev.filter(t => t.id !== taskId));
         const tempId = "temp-task-" + Math.random().toString();
-        const selectedDate = date || new Date();
         setTasks(prev => [...prev, { id: tempId, title, status: "waiting", createdAt: selectedDate, createdBy: user?.id || "" }]);
         try {
             await supabase.from(TABLES.RECURRING_TASKS).delete().eq("id", taskId);
@@ -352,7 +380,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const value = React.useMemo(() => ({
         tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, uncompleteRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask, getTurkeyDateKey, getTurkeyDayOfWeek
-    }), [tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, uncompleteRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask, getTurkeyDateKey, getTurkeyDayOfWeek]);
+    }), [tasks, recurringTasks, loading, loadTasks, addTask, addRecurringTask, completeRecurringTask, uncompleteRecurringTask, updateTaskStatus, updateTask, deleteTask, updateRecurringTask, deleteRecurringTask, convertTaskToRecurring, convertRecurringToTask, getTurkeyDateKey, getTurkeyDayOfWeek, checkRecurringTaskLimits]);
 
     return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;
 };
