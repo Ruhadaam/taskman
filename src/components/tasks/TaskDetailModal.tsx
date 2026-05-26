@@ -235,6 +235,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
             <ScrollView 
               horizontal 
+              keyboardShouldPersistTaps="handled"
               showsHorizontalScrollIndicator={false} 
               contentContainerStyle={styles.pillsContainer}
             >
@@ -244,11 +245,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   { 
                     borderColor: isRecurring ? colors.border : activeColor,
                     backgroundColor: isRecurring ? colors.inputBackground : activeColor + "15",
-                    opacity: isRecurring ? 0.5 : 1
                   }
                 ]}
-                disabled={isRecurring}
-                onPress={() => setShowDatePicker(true)}
+                onPress={() => {
+                  setIsRecurring(false);
+                  setShowDatePicker(true);
+                }}
               >
                 <Icon name="calendar-today" size={16} color={isRecurring ? colors.textSecondary : activeColor} />
                 <Text style={[styles.actionPillText, { color: isRecurring ? colors.textSecondary : activeColor }]}>
@@ -265,8 +267,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   }
                 ]}
                 onPress={() => {
-                  setIsRecurring(!isRecurring);
-                  if (!isRecurring) setShowDatePicker(false);
+                  setIsRecurring(true);
+                  setShowDatePicker(false);
                 }}
               >
                 <Icon name={isRecurring ? "repeat-on" : "repeat"} size={16} color={isRecurring ? activeColor : colors.textSecondary} />
@@ -297,6 +299,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     display={Platform.OS === 'ios' ? "spinner" : "default"}
                     onChange={handleDateChange}
                     themeVariant={isDark ? "dark" : "light"}
+                    locale="tr-TR"
                   />
                 </View>
               </Animated.View>
@@ -361,7 +364,6 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 }
               }}
             >
-              <Icon name={isRecurring ? "repeat" : "save"} size={20} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.submitButtonText}>Değişiklikleri Kaydet</Text>
             </TouchableOpacity>
             </ScrollView>

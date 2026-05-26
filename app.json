@@ -3,7 +3,7 @@
     "name": "Vzbel",
     "slug": "task-management-app",
     "scheme": "vzbel",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/V_white.png",
     "userInterfaceStyle": "automatic",
@@ -68,9 +68,11 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.vzbel.vzbelapp",
       "appleTeamId": "XD9YB38K7P",
-      "buildNumber": "1.0.69",
+      "buildNumber": "1.0.70",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleLocalizations": ["tr"],
+        "CFBundleDevelopmentRegion": "tr"
       }
     },
     "android": {
@@ -80,7 +82,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.vzbelapp",
-      "versionCode": 3
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/V_white.png"

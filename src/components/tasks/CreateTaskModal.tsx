@@ -222,7 +222,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                   styles.minimalInput,
                   { color: colors.text }
                 ]}
-                placeholder="Test görev..."
+                placeholder="Görev Adı"
                 placeholderTextColor={colors.textSecondary}
                 value={newTask.title}
                 maxLength={isRecurring ? 15 : 30}
@@ -233,6 +233,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
 
             <ScrollView 
               horizontal 
+              keyboardShouldPersistTaps="handled"
               showsHorizontalScrollIndicator={false} 
               contentContainerStyle={styles.pillsContainer}
             >
@@ -242,11 +243,12 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                   { 
                     borderColor: isRecurring ? colors.border : activeColor,
                     backgroundColor: isRecurring ? colors.inputBackground : activeColor + "15",
-                    opacity: isRecurring ? 0.5 : 1
                   }
                 ]}
-                disabled={isRecurring}
-                onPress={() => setShowDatePicker(true)}
+                onPress={() => {
+                  setIsRecurring(false);
+                  setShowDatePicker(true);
+                }}
               >
                 <Icon name="calendar-today" size={16} color={isRecurring ? colors.textSecondary : activeColor} />
                 <Text style={[styles.actionPillText, { color: isRecurring ? colors.textSecondary : activeColor }]}>
@@ -263,8 +265,8 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                   }
                 ]}
                 onPress={() => {
-                  setIsRecurring(!isRecurring);
-                  if (!isRecurring) setShowDatePicker(false);
+                  setIsRecurring(true);
+                  setShowDatePicker(false);
                 }}
               >
                 <Icon name={isRecurring ? "repeat-on" : "repeat"} size={16} color={isRecurring ? activeColor : colors.textSecondary} />
@@ -330,6 +332,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                       display="spinner"
                       onChange={handleDateChange}
                       themeVariant={isDark ? "dark" : "light"}
+                      locale="tr-TR"
                     />
                   </View>
                 )}
@@ -343,6 +346,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                     mode="date"
                     display="default"
                     onChange={handleDateChange}
+                    locale="tr-TR"
                   />
                 )}
               </Animated.View>
@@ -433,12 +437,6 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                 }
               }}
             >
-              <Icon
-                name={isRecurring ? "repeat" : "add-task"}
-                size={20}
-                color="#fff"
-                style={{ marginRight: 8 }}
-              />
               <Text style={styles.submitButtonText}>Görev Oluştur</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -493,7 +491,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   minimalInput: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: "600",
     paddingVertical: 8,
   },

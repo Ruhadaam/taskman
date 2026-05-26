@@ -213,6 +213,7 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
 
             <ScrollView 
               horizontal 
+              keyboardShouldPersistTaps="handled"
               showsHorizontalScrollIndicator={false} 
               contentContainerStyle={styles.pillsContainer}
             >
@@ -290,7 +291,6 @@ const RecurringTaskDetailModal: React.FC<RecurringTaskDetailModalProps> = ({
                 }
               }}
             >
-              <Icon name={isRecurring ? "save" : "check"} size={20} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.submitButtonText}>
                 {isRecurring ? "Değişiklikleri Kaydet" : "Normal Göreve Dönüştür"}
               </Text>
